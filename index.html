@@ -6,1191 +6,968 @@
   <title>Pince Pouce-Index — Superposition de disques</title>
   <style>
     :root{
-      --bg: #0b0f17;
-      --panel: rgba(20, 26, 38, 0.92);
-      --panelBorder: rgba(255,255,255,0.12);
-      --text: rgba(255,255,255,0.92);
-      --muted: rgba(255,255,255,0.68);
-      --accent: #7bd4ff;
-      --good: #7CFFB2;
-      --bad: #ff7b7b;
-      --btn: rgba(255,255,255,0.10);
-      --btnHover: rgba(255,255,255,0.16);
-      --shadow: 0 10px 30px rgba(0,0,0,0.4);
-      --radius: 18px;
-      --safeTop: env(safe-area-inset-top);
-      --safeRight: env(safe-area-inset-right);
-      --safeBottom: env(safe-area-inset-bottom);
-      --safeLeft: env(safe-area-inset-left);
-      --hudW: min(430px, calc(100vw - 28px));
+      --bg:#0b1020;
+      --panel:#101a36cc;
+      --panelSolid:#101a36;
+      --text:#e9eefc;
+      --muted:#b7c0dd;
+      --accent:#7aa2ff;
+      --danger:#ff6b6b;
+      --ok:#38d9a9;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+      --ring: 0 0 0 2px rgba(122,162,255,.45);
     }
 
     html, body {
-      margin: 0; padding: 0;
-      width: 100%; height: 100%;
-      background: var(--bg);
+      margin: 0;
+      height: 100%;
+      background: radial-gradient(1200px 800px at 50% 20%, #121a36 0%, var(--bg) 55%, #070a14 100%);
       color: var(--text);
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       overflow: hidden;
-      touch-action: none; /* IMPORTANT: empêche scroll/zoom & rend pointer events fiables */
-      user-select: none;
-      -webkit-user-select: none;
     }
 
+    /* Zone de jeu: IMPORTANT pour Android */
     #stage {
       position: fixed;
       inset: 0;
-      width: 100vw;
-      height: 100vh;
-      background: radial-gradient(1200px 900px at 50% 20%, rgba(123,212,255,0.12), transparent 60%),
-                  radial-gradient(1000px 700px at 20% 80%, rgba(124,255,178,0.08), transparent 60%),
-                  var(--bg);
+      touch-action: none;        /* <-- critique */
+      -ms-touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
-    /* Disques */
-    .disk {
-      position: absolute;
-      width: 140px;
-      height: 140px;
-      border-radius: 999px;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 10px 28px rgba(0,0,0,0.45);
-      border: 2px solid rgba(255,255,255,0.20);
-      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.35), rgba(255,255,255,0.10) 45%, rgba(0,0,0,0.12) 70%),
-                  rgba(123,212,255,0.12);
-      display: grid;
-      place-items: center;
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Mini barre + panneau repliable */
+    #hudBar{
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      z-index: 10;
+      pointer-events: none; /* laisse passer les doigts, sauf sur les boutons */
+    }
+
+    .chip {
       pointer-events: auto;
-      touch-action: none;
-    }
-    .disk .label {
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      color: rgba(255,255,255,0.85);
-      text-shadow: 0 1px 0 rgba(0,0,0,0.35);
-      font-size: 16px;
-      opacity: 0.85;
-    }
-    .disk[data-id="A"]{ background-color: rgba(123,212,255,0.16); }
-    .disk[data-id="B"]{ background-color: rgba(255,180,123,0.14); }
-
-    /* Bouton menu (petit, n'empiète pas) */
-    #menuBtn{
-      position: fixed;
-      top: calc(10px + var(--safeTop));
-      left: calc(10px + var(--safeLeft));
-      width: 46px;
-      height: 46px;
-      border-radius: 14px;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(16,26,54,.72);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--text);
       box-shadow: var(--shadow);
-      display: grid;
-      place-items: center;
-      font-size: 20px;
-      cursor: pointer;
-      z-index: 50;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      white-space: nowrap;
     }
-    #menuBtn:active{ background: rgba(255,255,255,0.16); }
+    .chip strong{ font-weight:700; }
+    .chip .dot{ width:8px;height:8px;border-radius:50%; background: var(--accent); display:inline-block; }
 
-    /* Panneau latéral (caché par défaut) */
-    #panel {
+    button, input, select{
+      font: inherit;
+    }
+
+    .btn {
+      pointer-events: auto;
+      background: rgba(122,162,255,.18);
+      border: 1px solid rgba(122,162,255,.35);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn.secondary{
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.14);
+    }
+    .btn.danger{
+      background: rgba(255,107,107,.14);
+      border-color: rgba(255,107,107,.35);
+    }
+
+    #panelWrap{
       position: fixed;
-      top: calc(10px + var(--safeTop));
-      right: calc(10px + var(--safeRight));
-      width: var(--hudW);
-      max-height: calc(100vh - 20px - var(--safeTop) - var(--safeBottom));
-      background: var(--panel);
-      border: 1px solid var(--panelBorder);
+      top: 54px;
+      left: 10px;
+      width: min(360px, calc(100vw - 20px));
+      z-index: 10;
+      pointer-events: none; /* les doigts passent sauf dans le panneau */
+    }
+
+    #panel{
+      pointer-events: auto;
+      background: rgba(16,26,54,.78);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,.10);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
-      z-index: 60;
       overflow: hidden;
-      transform: translateX(calc(100% + 16px));
-      transition: transform .18s ease;
-      pointer-events: none;
-    }
-    #panel.open {
-      transform: translateX(0);
-      pointer-events: auto;
+      transform-origin: top left;
     }
 
     #panelHeader{
-      display: flex;
-      align-items: center;
+      display:flex;
+      align-items:center;
       justify-content: space-between;
-      padding: 12px 14px;
-      border-bottom: 1px solid rgba(255,255,255,0.10);
-      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: rgba(16,26,54,.55);
     }
+
     #panelHeader .title{
-      font-weight: 750;
+      font-weight: 700;
       font-size: 14px;
-      letter-spacing: 0.02em;
-      opacity: 0.95;
+      display:flex;
+      align-items:center;
+      gap: 8px;
     }
-    #closeBtn{
-      width: 40px; height: 40px;
-      border-radius: 14px;
-      background: var(--btn);
-      border: 1px solid rgba(255,255,255,0.14);
-      cursor: pointer;
-      display: grid; place-items: center;
-      font-size: 18px;
-    }
-    #closeBtn:active{ background: var(--btnHover); }
 
     #panelBody{
-      padding: 12px 14px 14px 14px;
-      overflow: auto;
-      max-height: calc(100vh - 90px - var(--safeTop) - var(--safeBottom));
+      padding: 10px 12px 12px;
+      display: grid;
+      gap: 10px;
+      font-size: 13px;
     }
 
-    .section{
-      padding: 12px;
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 14px;
-      background: rgba(0,0,0,0.18);
-      margin-bottom: 12px;
-    }
-    .section h3{
-      margin: 0 0 10px 0;
-      font-size: 13px;
-      letter-spacing: 0.02em;
-      opacity: 0.92;
-    }
     .row{
-      display: grid;
+      display:grid;
+      grid-template-columns: 1fr 110px;
+      gap: 10px;
+      align-items:center;
+    }
+    .row label{ color: var(--muted); }
+    .row input{
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.22);
+      color: var(--text);
+      outline: none;
+    }
+    .row input:focus{ box-shadow: var(--ring); border-color: rgba(122,162,255,.45); }
+
+    .actions{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .hint{
+      color: var(--muted);
+      line-height: 1.25;
+    }
+
+    #panel.collapsed #panelBody { display:none; }
+    #panel.collapsed { width: 220px; }
+
+    /* Petit bandeau calibration */
+    #calibBanner{
+      position: fixed;
+      bottom: 14px;
+      left: 14px;
+      right: 14px;
+      z-index: 12;
+      pointer-events: none;
+      display:none;
+    }
+    #calibBanner .inner{
+      pointer-events:auto;
+      background: rgba(16,26,54,.85);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px;
+      display:flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #calibBanner .inner .top{
+      display:flex;
+      justify-content: space-between;
+      align-items:center;
+      gap:10px;
+    }
+    #calibBanner .inner .top strong{ font-size: 14px; }
+    #calibBanner .inner .meters{
+      display:grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
-      margin-bottom: 10px;
-    }
-    .field{
-      display: grid;
-      gap: 6px;
-    }
-    .field label{
-      font-size: 12px;
+      font-size: 13px;
       color: var(--muted);
     }
-    .field input[type="range"],
-    .field input[type="number"]{
-      width: 100%;
-    }
-    .field input[type="number"]{
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 12px;
-      color: var(--text);
-      padding: 10px 10px;
-      outline: none;
-      font-size: 14px;
-    }
-    .btnRow{
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    button.btn{
-      flex: 1 1 auto;
-      min-width: 140px;
-      border-radius: 14px;
-      background: var(--btn);
-      border: 1px solid rgba(255,255,255,0.14);
-      color: var(--text);
-      padding: 12px 12px;
-      font-weight: 650;
-      cursor: pointer;
-    }
-    button.btn:active{ background: var(--btnHover); }
-    button.btn.primary{ border-color: rgba(123,212,255,0.35); }
-    button.btn.good{ border-color: rgba(124,255,178,0.35); }
-    button.btn.warn{ border-color: rgba(255,123,123,0.40); }
-
-    .kv{
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      margin: 6px 0;
-      font-size: 12.5px;
-    }
-    .kv .k{ color: var(--muted); }
-    .kv .v{ font-variant-numeric: tabular-nums; }
-
-    #toast{
-      position: fixed;
-      left: 50%;
-      bottom: calc(14px + var(--safeBottom));
-      transform: translateX(-50%);
-      padding: 10px 14px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.55);
-      border: 1px solid rgba(255,255,255,0.18);
-      box-shadow: var(--shadow);
-      font-size: 13px;
-      z-index: 70;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .18s ease;
-      max-width: calc(100vw - 30px);
-      text-align: center;
-    }
-    #toast.show{ opacity: 1; }
-
-    /* Overlay calibration (plein écran) */
-    #calOverlay{
-      position: fixed;
-      inset: 0;
-      background: rgba(5,7,12,0.80);
-      backdrop-filter: blur(6px);
-      display: none;
-      z-index: 80;
-      padding: calc(14px + var(--safeTop)) calc(14px + var(--safeRight)) calc(14px + var(--safeBottom)) calc(14px + var(--safeLeft));
-    }
-    #calOverlay.show{ display: block; }
-    #calCard{
-      max-width: 720px;
-      margin: 0 auto;
-      background: rgba(20, 26, 38, 0.92);
-      border: 1px solid rgba(255,255,255,0.16);
-      border-radius: 18px;
-      padding: 16px;
-      box-shadow: var(--shadow);
-    }
-    #calCard h2{
-      margin: 0 0 10px 0;
-      font-size: 16px;
-      letter-spacing: 0.01em;
-    }
-    #calCard p{
-      margin: 8px 0;
-      color: var(--muted);
-      line-height: 1.35;
-      font-size: 13.5px;
-    }
-    #calStats{
-      margin-top: 12px;
-      display: grid;
-      gap: 8px;
-    }
-    .pill{
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      border-radius: 999px;
-      padding: 8px 10px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.12);
-      font-size: 13px;
-      font-variant-numeric: tabular-nums;
-      color: rgba(255,255,255,0.88);
-    }
-    .dot{ width: 8px; height: 8px; border-radius: 99px; background: var(--accent); opacity: .9; }
-
-    #calBtnRow{ margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
-
-    /* Petit indicateur recouvrement */
-    #overlapBadge{
-      position: fixed;
-      top: calc(10px + var(--safeTop));
-      left: calc(66px + var(--safeLeft));
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.14);
-      box-shadow: var(--shadow);
-      font-size: 12.5px;
-      z-index: 40;
-      font-variant-numeric: tabular-nums;
-      color: rgba(255,255,255,0.85);
-    }
-    #overlapBadge.good{ border-color: rgba(124,255,178,0.40); }
-    #overlapBadge.bad{ border-color: rgba(255,123,123,0.45); }
+    #calibBanner .inner .meters span b{ color: var(--text); }
 
   </style>
 </head>
 <body>
-  <div id="stage" aria-label="zone de jeu"></div>
+  <div id="stage" aria-label="Zone de jeu">
+    <canvas id="cv"></canvas>
+  </div>
 
-  <div id="menuBtn" title="Ouvrir le menu">☰</div>
-  <div id="overlapBadge" class="bad">Recouvrement: 0%</div>
+  <div id="hudBar">
+    <div class="chip"><span class="dot"></span><strong id="modeTxt">Jeu</strong></div>
+    <div class="chip">Doigts: <strong id="fingersTxt">0</strong></div>
+    <div class="chip">Essais: <strong id="trialTxt">0</strong></div>
+    <div class="chip">Succès: <strong id="successTxt">0</strong></div>
+    <button class="btn secondary" id="togglePanelBtn">Menu</button>
+  </div>
 
-  <aside id="panel" aria-label="panneau de contrôle">
-    <div id="panelHeader">
-      <div class="title">Pince pouce–index • Disques à superposer</div>
-      <button id="closeBtn" aria-label="Fermer">✕</button>
-    </div>
-    <div id="panelBody">
-      <div class="section">
-        <h3>Contrôle</h3>
-        <div class="btnRow">
-          <button class="btn primary" id="btnStart">Démarrer l’épreuve</button>
-          <button class="btn warn" id="btnStop">Stop</button>
-        </div>
-        <div style="height:10px"></div>
-        <div class="btnRow">
-          <button class="btn good" id="btnExport">Exporter CSV</button>
-          <button class="btn" id="btnReset">Réinitialiser données</button>
-        </div>
+  <div id="panelWrap">
+    <div id="panel" class="collapsed">
+      <div id="panelHeader">
+        <div class="title">⚙️ Paramètres</div>
+        <button class="btn secondary" id="collapseBtn">Replier</button>
       </div>
-
-      <div class="section">
-        <h3>Calibration (écart max pouce–index)</h3>
-        <div class="kv"><div class="k">Dernière distance max calibrée</div><div class="v"><span id="calValue">—</span> px</div></div>
-        <div class="kv"><div class="k">Distance initiale autorisée</div><div class="v"><span id="initRange">—</span> px</div></div>
-        <div class="btnRow">
-          <button class="btn primary" id="btnCalStart">Démarrer l’étalonnage</button>
-          <button class="btn" id="btnCalClear">Effacer calibration</button>
-        </div>
-        <p style="margin:10px 0 0 0; color: var(--muted); font-size:12.5px; line-height:1.35;">
-          Pendant l’étalonnage : poser 2 doigts, écarter au maximum, puis arrêter et sauver.
-        </p>
-      </div>
-
-      <div class="section">
-        <h3>Paramètres</h3>
+      <div id="panelBody">
         <div class="row">
-          <div class="field">
-            <label for="diskSize">Diamètre disques (px)</label>
-            <input id="diskSize" type="number" min="60" max="360" step="5" value="140">
-          </div>
-          <div class="field">
-            <label for="overlapTol">Recouvrement toléré (%)</label>
-            <input id="overlapTol" type="number" min="10" max="95" step="1" value="50">
-          </div>
+          <label for="diskSize">Diamètre disque (px)</label>
+          <input id="diskSize" type="number" min="40" max="500" step="5" value="160">
         </div>
         <div class="row">
-          <div class="field">
-            <label for="maxTrials">Nombre d’essais (0 = infini)</label>
-            <input id="maxTrials" type="number" min="0" max="999" step="1" value="0">
-          </div>
-          <div class="field">
-            <label for="spawnPadding">Marge bords (px)</label>
-            <input id="spawnPadding" type="number" min="0" max="160" step="5" value="30">
-          </div>
+          <label for="overlapReq">Recouvrement requis (%)</label>
+          <input id="overlapReq" type="number" min="10" max="95" step="5" value="50">
+        </div>
+        <div class="row">
+          <label for="minStartFrac">Distance initiale min (×Dmax)</label>
+          <input id="minStartFrac" type="number" min="0.1" max="0.9" step="0.05" value="0.5">
+        </div>
+        <div class="row">
+          <label for="maxStartFrac">Distance initiale max (×Dmax)</label>
+          <input id="maxStartFrac" type="number" min="0.2" max="1.0" step="0.05" value="1.0">
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="startBtn">Démarrer</button>
+          <button class="btn secondary" id="pauseBtn">Pause</button>
+          <button class="btn secondary" id="newPairBtn">Nouveau couple</button>
+          <button class="btn" id="calibBtn">Calibration</button>
+          <button class="btn secondary" id="exportBtn">Exporter CSV</button>
+          <button class="btn danger" id="resetBtn">Reset</button>
+        </div>
+
+        <div class="hint">
+          <div><b>But :</b> poser un doigt sur chaque disque et les rapprocher jusqu’à recouvrement.</div>
+          <div>La zone de jeu laisse passer les touches. Si “0 doigts”, vérifie Chrome/Internet Samsung et désactive le défilement (c’est géré ici).</div>
+          <div><b>Dmax</b> vient de la calibration (écart max pouce-index). Les essais seront générés avec une distance initiale entre <b>min×Dmax</b> et <b>max×Dmax</b>.</div>
+        </div>
+
+        <div class="hint">
+          <div>Dmax actuel : <b id="dmaxTxt">non calibré</b></div>
         </div>
       </div>
-
-      <div class="section">
-        <h3>Métriques (essai courant)</h3>
-        <div class="kv"><div class="k">Essai #</div><div class="v" id="mTrial">—</div></div>
-        <div class="kv"><div class="k">Temps (ms)</div><div class="v" id="mTime">—</div></div>
-        <div class="kv"><div class="k">Latence 1er mouvement (ms)</div><div class="v" id="mLatency">—</div></div>
-        <div class="kv"><div class="k">Chemin A (px)</div><div class="v" id="mPathA">—</div></div>
-        <div class="kv"><div class="k">Chemin B (px)</div><div class="v" id="mPathB">—</div></div>
-        <div class="kv"><div class="k">Ratio chemin / dist init (A)</div><div class="v" id="mRatioA">—</div></div>
-        <div class="kv"><div class="k">Ratio chemin / dist init (B)</div><div class="v" id="mRatioB">—</div></div>
-        <div class="kv"><div class="k">Lâchers de doigts (A+B)</div><div class="v" id="mLifts">—</div></div>
-        <div class="kv"><div class="k">Dérapages (A+B)</div><div class="v" id="mSlips">—</div></div>
-        <div class="kv"><div class="k">Tremblement (A)</div><div class="v" id="mTremA">—</div></div>
-        <div class="kv"><div class="k">Tremblement (B)</div><div class="v" id="mTremB">—</div></div>
-      </div>
-
-      <div class="section">
-        <h3>Note</h3>
-        <p style="margin:0; color: var(--muted); font-size:12.5px; line-height:1.35;">
-          Pour que l’enfant utilise bien la pince : un doigt par disque.
-          Le système n’autorise le déplacement d’un disque que si un doigt est posé dessus.
-        </p>
-      </div>
-
     </div>
-  </aside>
+  </div>
 
-  <div id="toast"></div>
-
-  <div id="calOverlay" aria-modal="true" role="dialog">
-    <div id="calCard">
-      <h2>Étalonnage pouce–index</h2>
-      <p>
-        Posez <b>deux doigts</b> (pouce et index) sur l’écran, puis <b>écartez</b> progressivement jusqu’à votre écart maximum confortable.
-      </p>
-      <p>
-        L’application enregistre la <b>distance maximale</b> observée entre ces deux doigts.
-      </p>
-      <div id="calStats">
-        <div class="pill"><span class="dot"></span> Doigts détectés : <span id="calFingers">0</span></div>
-        <div class="pill"><span class="dot"></span> Distance actuelle : <span id="calCur">—</span> px</div>
-        <div class="pill"><span class="dot"></span> Distance max : <span id="calMax">—</span> px</div>
+  <div id="calibBanner">
+    <div class="inner">
+      <div class="top">
+        <strong>Calibration en cours</strong>
+        <button class="btn secondary" id="calibStopBtn">Terminer</button>
       </div>
-      <div id="calBtnRow">
-        <button class="btn primary" id="btnCalStopSave">Arrêter &amp; Sauver</button>
-        <button class="btn warn" id="btnCalCancel">Annuler</button>
+      <div class="meters">
+        <span>Doigts détectés: <b id="calibFingers">0</b></span>
+        <span>Écart courant: <b id="calibDist">0</b> px</span>
+        <span>Écart max (Dmax): <b id="calibMax">0</b> px</span>
+        <span>Conseil: <b>écarte au max</b></span>
       </div>
-      <p style="margin-top:12px; color: var(--muted); font-size:12.5px;">
-        Astuce : gardez les doigts stables 1 seconde à l’écart maximal avant d’arrêter.
-      </p>
+      <div class="hint">Pose pouce + index n’importe où et écarte-les le plus possible. On enregistre le maximum observé.</div>
     </div>
   </div>
 
 <script>
 (() => {
-  // ---------- Helpers ----------
-  const $ = (id) => document.getElementById(id);
-  const stage = $("stage");
-  const toast = $("toast");
-  const panel = $("panel");
-  const menuBtn = $("menuBtn");
-  const closeBtn = $("closeBtn");
-  const overlapBadge = $("overlapBadge");
+  // ====== Canvas setup ======
+  const stage = document.getElementById('stage');
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d', { alpha: false });
 
-  function showToast(msg, ms=1400){
-    toast.textContent = msg;
-    toast.classList.add("show");
-    clearTimeout(showToast._t);
-    showToast._t = setTimeout(() => toast.classList.remove("show"), ms);
+  function resize() {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    cv.width = Math.floor(stage.clientWidth * dpr);
+    cv.height = Math.floor(stage.clientHeight * dpr);
+    cv._dpr = dpr;
   }
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
 
-  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-  function dist(ax, ay, bx, by){
-    const dx = ax - bx, dy = ay - by;
-    return Math.hypot(dx, dy);
-  }
+  // ====== UI elements ======
+  const modeTxt = document.getElementById('modeTxt');
+  const fingersTxt = document.getElementById('fingersTxt');
+  const trialTxt = document.getElementById('trialTxt');
+  const successTxt = document.getElementById('successTxt');
 
-  // Cercle intersection area (r1=r2=r)
-  function overlapFractionSameR(d, r){
-    // retourne fraction de surface d'un disque recouverte (0..1)
-    // Si d >= 2r => 0 ; si d <= 0 => 1
-    if (d >= 2*r) return 0;
-    if (d <= 0) return 1;
-    // aire intersection de deux cercles de même rayon
-    const part1 = 2 * r*r * Math.acos(d / (2*r));
-    const part2 = 0.5 * d * Math.sqrt(Math.max(0, 4*r*r - d*d));
-    const inter = part1 - part2;
-    const area = Math.PI * r*r;
-    return inter / area;
-  }
+  const panel = document.getElementById('panel');
+  const togglePanelBtn = document.getElementById('togglePanelBtn');
+  const collapseBtn = document.getElementById('collapseBtn');
 
-  // ---------- State ----------
+  const diskSizeInput = document.getElementById('diskSize');
+  const overlapReqInput = document.getElementById('overlapReq');
+  const minStartFracInput = document.getElementById('minStartFrac');
+  const maxStartFracInput = document.getElementById('maxStartFrac');
+
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const newPairBtn = document.getElementById('newPairBtn');
+  const calibBtn = document.getElementById('calibBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const dmaxTxt = document.getElementById('dmaxTxt');
+
+  const calibBanner = document.getElementById('calibBanner');
+  const calibStopBtn = document.getElementById('calibStopBtn');
+  const calibFingers = document.getElementById('calibFingers');
+  const calibDist = document.getElementById('calibDist');
+  const calibMax = document.getElementById('calibMax');
+
+  togglePanelBtn.addEventListener('click', () => panel.classList.toggle('collapsed'));
+  collapseBtn.addEventListener('click', () => panel.classList.toggle('collapsed'));
+
+  // ====== State ======
   const state = {
     running: false,
-    trialIndex: 0,
-    maxTrials: 0,
-
-    diskSize: 140,
-    overlapTol: 0.50,
-    spawnPadding: 30,
-
+    paused: false,
+    mode: 'game', // 'game' | 'calib'
+    trial: 0,
+    success: 0,
     // Calibration
-    calibratedMaxSpan: null,  // px
-    minInitFactor: 0.5,       // min distance = 50% du max
-    // Current trial
-    trial: null,
-    logs: [],
-
-    // Disk pointers
-    pointerToDisk: new Map(), // pointerId -> "A"|"B"
-    activePointers: new Map(),// pointerId -> {x,y, t}
+    dmax: null,            // px
+    calibMaxSeen: 0,
+    // Disks
+    diskDiameter: 160,
+    overlapRequired: 0.50, // 50%
+    minStartFrac: 0.5,
+    maxStartFrac: 1.0,
+    diskA: null,
+    diskB: null,
+    // Pointer tracking
+    pointers: new Map(), // pointerId -> {x,y,downTime,lastTime,history:[{t,x,y}]}
+    // assignment: pointerId -> 'A'|'B'
+    grab: new Map(),
+    // logs
+    rows: [],
+    // trial metrics
+    current: null
   };
 
-  // persistent settings
-  const LS_KEY = "pince_disks_settings_v2";
-  function saveSettings(){
-    const s = {
-      diskSize: state.diskSize,
-      overlapTol: state.overlapTol,
-      spawnPadding: state.spawnPadding,
-      maxTrials: state.maxTrials,
-      calibratedMaxSpan: state.calibratedMaxSpan
-    };
-    localStorage.setItem(LS_KEY, JSON.stringify(s));
-  }
-  function loadSettings(){
-    try{
-      const s = JSON.parse(localStorage.getItem(LS_KEY) || "null");
-      if(!s) return;
-      if(typeof s.diskSize === "number") state.diskSize = s.diskSize;
-      if(typeof s.overlapTol === "number") state.overlapTol = s.overlapTol;
-      if(typeof s.spawnPadding === "number") state.spawnPadding = s.spawnPadding;
-      if(typeof s.maxTrials === "number") state.maxTrials = s.maxTrials;
-      if(typeof s.calibratedMaxSpan === "number") state.calibratedMaxSpan = s.calibratedMaxSpan;
-    }catch(e){}
+  function nowMs(){ return performance.now(); }
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+  function setMode(m){
+    state.mode = m;
+    modeTxt.textContent = (m === 'calib') ? 'Calibration' : 'Jeu';
+    calibBanner.style.display = (m === 'calib') ? 'block' : 'none';
   }
 
-  // ---------- UI elements ----------
-  const ui = {
-    diskSize: $("diskSize"),
-    overlapTol: $("overlapTol"),
-    maxTrials: $("maxTrials"),
-    spawnPadding: $("spawnPadding"),
-
-    btnStart: $("btnStart"),
-    btnStop: $("btnStop"),
-    btnExport: $("btnExport"),
-    btnReset: $("btnReset"),
-
-    calValue: $("calValue"),
-    initRange: $("initRange"),
-    btnCalStart: $("btnCalStart"),
-    btnCalClear: $("btnCalClear"),
-
-    mTrial: $("mTrial"),
-    mTime: $("mTime"),
-    mLatency: $("mLatency"),
-    mPathA: $("mPathA"),
-    mPathB: $("mPathB"),
-    mRatioA: $("mRatioA"),
-    mRatioB: $("mRatioB"),
-    mLifts: $("mLifts"),
-    mSlips: $("mSlips"),
-    mTremA: $("mTremA"),
-    mTremB: $("mTremB"),
-
-    // calibration overlay
-    calOverlay: $("calOverlay"),
-    calFingers: $("calFingers"),
-    calCur: $("calCur"),
-    calMax: $("calMax"),
-    btnCalStopSave: $("btnCalStopSave"),
-    btnCalCancel: $("btnCalCancel"),
-  };
-
-  function updateParamUI(){
-    ui.diskSize.value = state.diskSize;
-    ui.overlapTol.value = Math.round(state.overlapTol*100);
-    ui.spawnPadding.value = state.spawnPadding;
-    ui.maxTrials.value = state.maxTrials;
-
-    ui.calValue.textContent = state.calibratedMaxSpan ? Math.round(state.calibratedMaxSpan) : "—";
-    if(state.calibratedMaxSpan){
-      const minD = Math.round(state.calibratedMaxSpan * state.minInitFactor);
-      const maxD = Math.round(state.calibratedMaxSpan);
-      ui.initRange.textContent = `${minD} → ${maxD}`;
-    } else {
-      ui.initRange.textContent = "—";
-    }
-  }
-
-  // ---------- Disks ----------
-  let diskA, diskB;
-
-  function createDisk(id){
-    const el = document.createElement("div");
-    el.className = "disk";
-    el.dataset.id = id;
-    el.innerHTML = `<div class="label">${id}</div>`;
-    stage.appendChild(el);
-    return el;
-  }
-
-  function setDiskPos(el, x, y){
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
-  }
-  function getDiskPos(el){
+  // ====== Disk helpers ======
+  function newDisk(x,y){
     return {
-      x: parseFloat(el.style.left),
-      y: parseFloat(el.style.top)
+      x,y,
+      r: state.diskDiameter/2,
+      vx:0, vy:0,
+      // metrics per disk
+      path: 0,
+      tremor: 0,
+      lastPos: {x,y},
+      lastVel: {x:0,y:0}
     };
   }
 
-  function setDiskSizePx(px){
-    state.diskSize = px;
-    const els = [diskA, diskB].filter(Boolean);
-    for(const el of els){
-      el.style.width = `${px}px`;
-      el.style.height = `${px}px`;
-    }
+  function dist(a,b){
+    const dx = a.x-b.x, dy=a.y-b.y;
+    return Math.hypot(dx,dy);
   }
 
-  // ---------- Trial & Metrics ----------
-  function newTrial(){
-    // If maxTrials > 0 and reached => stop
-    if(state.maxTrials > 0 && state.trialIndex >= state.maxTrials){
-      stopRun();
-      showToast("Épreuve terminée.");
-      return;
-    }
+  // Approx overlap of two equal circles via area intersection formula.
+  function overlapRatioEqualCircles(d, r){
+    // returns intersectionArea / circleArea
+    if (d >= 2*r) return 0;
+    if (d <= 0) return 1;
+    // intersection area:
+    // A = 2 r^2 cos^-1(d/2r) - (d/2) sqrt(4 r^2 - d^2)
+    const part1 = 2*r*r*Math.acos(clamp(d/(2*r), -1, 1));
+    const part2 = (d/2)*Math.sqrt(Math.max(0, 4*r*r - d*d));
+    const A = part1 - part2;
+    const circleArea = Math.PI * r * r;
+    return A / circleArea;
+  }
 
-    state.pointerToDisk.clear();
-    state.activePointers.clear();
+  function pickStartDistance(){
+    const dmax = (state.dmax && state.dmax > 30) ? state.dmax : Math.min(stage.clientWidth, stage.clientHeight) * 0.65;
+    const minF = clamp(state.minStartFrac, 0.1, 0.9);
+    const maxF = clamp(state.maxStartFrac, minF + 0.05, 1.0);
+    const dMin = dmax * minF;
+    const dMax = dmax * maxF;
+    return dMin + Math.random() * (dMax - dMin);
+  }
 
-    state.trialIndex += 1;
+  function randomPair(){
+    const w = stage.clientWidth;
+    const h = stage.clientHeight;
+    const margin = Math.max(24, state.diskDiameter/2 + 10);
+    const d0 = pickStartDistance();
 
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    // pick center for A, and direction for B with distance d0
+    const ax = margin + Math.random()*(w - 2*margin);
+    const ay = margin + Math.random()*(h - 2*margin);
+    const ang = Math.random() * Math.PI * 2;
+    let bx = ax + Math.cos(ang) * d0;
+    let by = ay + Math.sin(ang) * d0;
 
-    const r = state.diskSize/2;
-    const pad = state.spawnPadding + r;
+    // if out of bounds, reflect back by clamping
+    bx = clamp(bx, margin, w - margin);
+    by = clamp(by, margin, h - margin);
 
-    // Distance initiale: si calibré => entre [0.5*max, max], sinon libre
-    let minD = null, maxD = null;
-    if(state.calibratedMaxSpan && state.calibratedMaxSpan > 30){
-      minD = state.calibratedMaxSpan * state.minInitFactor;
-      maxD = state.calibratedMaxSpan;
-    }
+    state.diskA = newDisk(ax,ay);
+    state.diskB = newDisk(bx,by);
 
-    // Génération robuste: choisir un point A, puis un angle et une distance d
-    // en s'assurant que B reste dans l'écran.
-    let ax, ay, bx, by, d;
-    let tries = 0;
-    while(true){
-      tries++;
-      if(tries > 2000){
-        // fallback: centre
-        ax = w*0.35; ay = h*0.5;
-        bx = w*0.65; by = h*0.5;
-        d = dist(ax,ay,bx,by);
-        break;
-      }
+    state.trial += 1;
+    trialTxt.textContent = String(state.trial);
 
-      ax = clamp(pad + Math.random()*(w - 2*pad), pad, w-pad);
-      ay = clamp(pad + Math.random()*(h - 2*pad), pad, h-pad);
+    // reset grabs
+    state.grab.clear();
 
-      // Choisir d
-      if(minD !== null && maxD !== null){
-        d = minD + Math.random() * (maxD - minD);
-      } else {
-        // d libre raisonnable
-        const minFree = r*1.3;
-        const maxFree = Math.min(w,h) * 0.65;
-        d = minFree + Math.random()*(maxFree - minFree);
-      }
-
-      const ang = Math.random() * Math.PI * 2;
-      bx = ax + Math.cos(ang)*d;
-      by = ay + Math.sin(ang)*d;
-
-      if(bx >= pad && bx <= w-pad && by >= pad && by <= h-pad){
-        // éviter que les disques soient déjà trop superposés
-        const frac = overlapFractionSameR(dist(ax,ay,bx,by), r);
-        if(frac < state.overlapTol*0.6) break;
-      }
-    }
-
-    setDiskPos(diskA, ax, ay);
-    setDiskPos(diskB, bx, by);
-
-    const t0 = performance.now();
-    state.trial = {
-      id: state.trialIndex,
-      startedAt: t0,
-      endedAt: null,
-      initDist: dist(ax,ay,bx,by),
-      firstMoveAt: null,
-
-      // per disk metrics
-      A: { path: 0, lastX: ax, lastY: ay, lifts: 0, slips: 0, maxJerk: 0, tremorExcess: 0, netDisp: 0 },
-      B: { path: 0, lastX: bx, lastY: by, lifts: 0, slips: 0, maxJerk: 0, tremorExcess: 0, netDisp: 0 },
-
-      // pointers events counts
-      totalLifts: 0,
-      totalSlips: 0,
-
-      // quality trace (optional)
-      overlapMax: 0
+    // trial metrics
+    state.current = {
+      trial: state.trial,
+      startT: nowMs(),
+      endT: null,
+      startDist: dist(state.diskA, state.diskB),
+      endDist: null,
+      lifts: 0,
+      slips: 0,
+      pointerEvents: 0,
+      // per disk path/tremor stored in disks
+      overlapAtSuccess: null
     };
-
-    updateMetricsUI();
-    updateOverlapBadge();
   }
 
-  function endTrial(success=true){
-    const tr = state.trial;
-    if(!tr) return;
-
-    tr.endedAt = performance.now();
-
-    const dur = tr.endedAt - tr.startedAt;
-    const latency = tr.firstMoveAt ? (tr.firstMoveAt - tr.startedAt) : null;
-
-    // net displacement per disk
-    const pA = getDiskPos(diskA);
-    const pB = getDiskPos(diskB);
-    tr.A.netDisp = dist(tr.A.lastX0 ?? tr.A.lastX, tr.A.lastY0 ?? tr.A.lastY, pA.x, pA.y);
-    tr.B.netDisp = dist(tr.B.lastX0 ?? tr.B.lastX, tr.B.lastY0 ?? tr.B.lastY, pB.x, pB.y);
-
-    // Tremor proxy: excess path vs straight-line displacement
-    // tremorIndex = (path / max(1,disp)) - 1
-    const tremA = (tr.A.path / Math.max(1, dist(tr.A.lastXStart ?? tr.A.lastX, tr.A.lastYStart ?? tr.A.lastY, pA.x, pA.y))) - 1;
-    const tremB = (tr.B.path / Math.max(1, dist(tr.B.lastXStart ?? tr.B.lastX, tr.B.lastYStart ?? tr.B.lastY, pB.x, pB.y))) - 1;
-
-    const row = {
-      timestampISO: new Date().toISOString(),
-      trial: tr.id,
-      success: success ? 1 : 0,
-      duration_ms: Math.round(dur),
-      latency_ms: latency === null ? "" : Math.round(latency),
-      diskSize_px: state.diskSize,
-      overlapTol_pct: Math.round(state.overlapTol*100),
-      initDist_px: Math.round(tr.initDist),
-      overlapMax_pct: Math.round(tr.overlapMax*100),
-
-      pathA_px: Math.round(tr.A.path),
-      pathB_px: Math.round(tr.B.path),
-      ratioPathA: (tr.A.path / Math.max(1,tr.initDist)).toFixed(3),
-      ratioPathB: (tr.B.path / Math.max(1,tr.initDist)).toFixed(3),
-
-      liftsA: tr.A.lifts,
-      liftsB: tr.B.lifts,
-      liftsTotal: tr.totalLifts,
-
-      slipsA: tr.A.slips,
-      slipsB: tr.B.slips,
-      slipsTotal: tr.totalSlips,
-
-      tremorA: isFinite(tremA) ? tremA.toFixed(3) : "",
-      tremorB: isFinite(tremB) ? tremB.toFixed(3) : "",
-    };
-
-    state.logs.push(row);
-    updateMetricsUI();
-  }
-
-  function updateMetricsUI(){
-    const tr = state.trial;
-    ui.mTrial.textContent = tr ? tr.id : "—";
-    if(!tr){
-      ui.mTime.textContent = "—";
-      ui.mLatency.textContent = "—";
-      ui.mPathA.textContent = "—";
-      ui.mPathB.textContent = "—";
-      ui.mRatioA.textContent = "—";
-      ui.mRatioB.textContent = "—";
-      ui.mLifts.textContent = "—";
-      ui.mSlips.textContent = "—";
-      ui.mTremA.textContent = "—";
-      ui.mTremB.textContent = "—";
-      return;
-    }
-    const now = performance.now();
-    ui.mTime.textContent = Math.round(now - tr.startedAt);
-    ui.mLatency.textContent = tr.firstMoveAt ? Math.round(tr.firstMoveAt - tr.startedAt) : "—";
-    ui.mPathA.textContent = Math.round(tr.A.path);
-    ui.mPathB.textContent = Math.round(tr.B.path);
-    ui.mRatioA.textContent = (tr.A.path / Math.max(1,tr.initDist)).toFixed(3);
-    ui.mRatioB.textContent = (tr.B.path / Math.max(1,tr.initDist)).toFixed(3);
-    ui.mLifts.textContent = tr.totalLifts;
-    ui.mSlips.textContent = tr.totalSlips;
-
-    const pA = getDiskPos(diskA);
-    const pB = getDiskPos(diskB);
-    const dispA = dist(tr.A.lastXStart ?? tr.A.lastX, tr.A.lastYStart ?? tr.A.lastY, pA.x, pA.y);
-    const dispB = dist(tr.B.lastXStart ?? tr.B.lastX, tr.B.lastYStart ?? tr.B.lastY, pB.x, pB.y);
-    const tremA = (tr.A.path / Math.max(1,dispA)) - 1;
-    const tremB = (tr.B.path / Math.max(1,dispB)) - 1;
-    ui.mTremA.textContent = isFinite(tremA) ? tremA.toFixed(3) : "—";
-    ui.mTremB.textContent = isFinite(tremB) ? tremB.toFixed(3) : "—";
-  }
-
-  // ---------- Overlap check ----------
-  function updateOverlapBadge(){
-    if(!diskA || !diskB) return;
-    const a = getDiskPos(diskA);
-    const b = getDiskPos(diskB);
-    const r = state.diskSize/2;
-    const f = overlapFractionSameR(dist(a.x,a.y,b.x,b.y), r);
-    if(state.trial) state.trial.overlapMax = Math.max(state.trial.overlapMax, f);
-
-    overlapBadge.textContent = `Recouvrement: ${Math.round(f*100)}%`;
-    const ok = f >= state.overlapTol;
-    overlapBadge.classList.toggle("good", ok);
-    overlapBadge.classList.toggle("bad", !ok);
-
-    // condition de réussite
-    if(state.running && ok){
-      // Terminer essai -> nouveau couple
-      endTrial(true);
-      // micro feedback
-      showToast("✔");
-      newTrial();
-    }
-  }
-
-  // ---------- Pointer logic: un doigt par disque ----------
-  function pointInDisk(px, py, diskEl){
-    const p = getDiskPos(diskEl);
-    const r = state.diskSize/2;
-    return dist(px,py,p.x,p.y) <= r;
-  }
-
-  function attachPointerHandlers(diskEl){
-    diskEl.addEventListener("pointerdown", (e) => {
-      if(!state.running) return;
-
-      // un seul doigt par disque, et un seul disque par doigt
-      if(state.pointerToDisk.has(e.pointerId)) return;
-
-      const diskId = diskEl.dataset.id;
-      // si ce disque a déjà un doigt, refuser
-      for(const [pid, did] of state.pointerToDisk.entries()){
-        if(did === diskId) return;
-      }
-
-      // s'assurer que l'appui est sur le disque
-      const rect = stage.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      if(!pointInDisk(x,y,diskEl)) return;
-
-      diskEl.setPointerCapture(e.pointerId);
-      state.pointerToDisk.set(e.pointerId, diskId);
-      state.activePointers.set(e.pointerId, {x, y, t: performance.now()});
-
-      // marquer "début" de trajectoire si premier move
-      const tr = state.trial;
-      if(tr){
-        const d = tr[diskId];
-        if(d.lastXStart === undefined){
-          const p = getDiskPos(diskEl);
-          d.lastXStart = p.x;
-          d.lastYStart = p.y;
-          d.lastX0 = p.x;
-          d.lastY0 = p.y;
-        }
-      }
-
-      e.preventDefault();
-    });
-
-    diskEl.addEventListener("pointermove", (e) => {
-      if(!state.running) return;
-      const diskId = state.pointerToDisk.get(e.pointerId);
-      if(diskId !== diskEl.dataset.id) return;
-
-      const rect = stage.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      const prev = state.activePointers.get(e.pointerId);
-      const nowT = performance.now();
-      state.activePointers.set(e.pointerId, {x, y, t: nowT});
-
-      // déplacer le disque en suivant le doigt
-      // + clamp pour rester à l'écran
-      const r = state.diskSize/2;
-      const pad = state.spawnPadding + r;
-      const nx = clamp(x, pad, window.innerWidth - pad);
-      const ny = clamp(y, pad, window.innerHeight - pad);
-
-      // metrics
-      const tr = state.trial;
-      if(tr){
-        if(!tr.firstMoveAt) tr.firstMoveAt = nowT;
-        const d = tr[diskId];
-
-        const p = getDiskPos(diskEl);
-        const step = dist(p.x, p.y, nx, ny);
-        d.path += step;
-
-        // slip proxy: si le doigt "sort" du disque (distance doigt-centre > r) à un moment
-        // Comme on fait pointer capture, le move continue: on détecte ce "dérapage" pour métrique
-        const out = dist(x,y,p.x,p.y) > r*1.05;
-        if(out){
-          d.slips += 1;
-          tr.totalSlips += 1;
-        }
-
-        d.lastX = nx; d.lastY = ny;
-      }
-
-      setDiskPos(diskEl, nx, ny);
-      updateOverlapBadge();
-      e.preventDefault();
-    });
-
-    diskEl.addEventListener("pointerup", (e) => {
-      const diskId = state.pointerToDisk.get(e.pointerId);
-      if(diskId === diskEl.dataset.id){
-        state.pointerToDisk.delete(e.pointerId);
-        state.activePointers.delete(e.pointerId);
-
-        const tr = state.trial;
-        if(tr){
-          tr[diskId].lifts += 1;
-          tr.totalLifts += 1;
-        }
-        e.preventDefault();
-      }
-    });
-
-    diskEl.addEventListener("pointercancel", (e) => {
-      const diskId = state.pointerToDisk.get(e.pointerId);
-      if(diskId === diskEl.dataset.id){
-        state.pointerToDisk.delete(e.pointerId);
-        state.activePointers.delete(e.pointerId);
-
-        const tr = state.trial;
-        if(tr){
-          tr[diskId].lifts += 1;
-          tr.totalLifts += 1;
-        }
-        e.preventDefault();
-      }
-    });
-  }
-
-  // ---------- Calibration ----------
-  const cal = {
-    active: false,
-    maxD: 0,
-    curD: 0,
-    pids: [],   // pointerIds currently used for calibration
-    pts: new Map()
-  };
-
-  function openCalibration(){
-    // UI overlay
-    cal.active = true;
-    cal.maxD = 0;
-    cal.curD = 0;
-    cal.pids = [];
-    cal.pts.clear();
-
-    ui.calFingers.textContent = "0";
-    ui.calCur.textContent = "—";
-    ui.calMax.textContent = "—";
-    ui.calOverlay.classList.add("show");
-    showToast("Calibration: posez 2 doigts puis écartez.");
-  }
-
-  function closeCalibration(){
-    cal.active = false;
-    cal.pids = [];
-    cal.pts.clear();
-    ui.calOverlay.classList.remove("show");
-  }
-
-  // calibration uses stage pointer events (pas les disques)
-  stage.addEventListener("pointerdown", (e) => {
-    if(!cal.active) return;
-    // capter jusqu'à 2 doigts
-    if(cal.pids.length >= 2) return;
-    stage.setPointerCapture(e.pointerId);
-
-    const rect = stage.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    cal.pids.push(e.pointerId);
-    cal.pts.set(e.pointerId, {x,y});
-    ui.calFingers.textContent = String(cal.pids.length);
-    e.preventDefault();
-  });
-
-  stage.addEventListener("pointermove", (e) => {
-    if(!cal.active) return;
-    if(!cal.pts.has(e.pointerId)) return;
-
-    const rect = stage.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    cal.pts.set(e.pointerId, {x,y});
-
-    if(cal.pids.length === 2){
-      const p1 = cal.pts.get(cal.pids[0]);
-      const p2 = cal.pts.get(cal.pids[1]);
-      if(p1 && p2){
-        cal.curD = dist(p1.x,p1.y,p2.x,p2.y);
-        cal.maxD = Math.max(cal.maxD, cal.curD);
-        ui.calCur.textContent = Math.round(cal.curD);
-        ui.calMax.textContent = Math.round(cal.maxD);
-      }
-    }
-    e.preventDefault();
-  });
-
-  stage.addEventListener("pointerup", (e) => {
-    if(!cal.active) return;
-    if(cal.pts.has(e.pointerId)){
-      cal.pts.delete(e.pointerId);
-      cal.pids = cal.pids.filter(id => id !== e.pointerId);
-      ui.calFingers.textContent = String(cal.pids.length);
-      // on garde maxD
-      e.preventDefault();
-    }
-  });
-
-  stage.addEventListener("pointercancel", (e) => {
-    if(!cal.active) return;
-    if(cal.pts.has(e.pointerId)){
-      cal.pts.delete(e.pointerId);
-      cal.pids = cal.pids.filter(id => id !== e.pointerId);
-      ui.calFingers.textContent = String(cal.pids.length);
-      e.preventDefault();
-    }
-  });
-
-  ui.btnCalStopSave.addEventListener("click", () => {
-    if(!cal.active) return;
-    if(cal.maxD < 30){
-      showToast("Calibration insuffisante (écartez davantage).");
-      return;
-    }
-    state.calibratedMaxSpan = cal.maxD;
-    saveSettings();
-    updateParamUI();
-    closeCalibration();
-    showToast(`Calibration sauvée: ${Math.round(state.calibratedMaxSpan)} px`);
-  });
-
-  ui.btnCalCancel.addEventListener("click", () => {
-    if(!cal.active) return;
-    closeCalibration();
-    showToast("Calibration annulée.");
-  });
-
-  // ---------- Controls ----------
-  menuBtn.addEventListener("click", () => panel.classList.add("open"));
-  closeBtn.addEventListener("click", () => panel.classList.remove("open"));
-  // Tap outside panel to close (optionnel)
-  stage.addEventListener("pointerdown", (e) => {
-    if(panel.classList.contains("open")){
-      // si clic dans zone stage et pas sur panel
-      const pr = panel.getBoundingClientRect();
-      if(!(e.clientX >= pr.left && e.clientX <= pr.right && e.clientY >= pr.top && e.clientY <= pr.bottom)){
-        panel.classList.remove("open");
-      }
-    }
-  });
-
-  ui.diskSize.addEventListener("change", () => {
-    const v = clamp(parseInt(ui.diskSize.value || "140",10), 60, 360);
-    setDiskSizePx(v);
-    saveSettings();
-    updateParamUI();
-    updateOverlapBadge();
-  });
-
-  ui.overlapTol.addEventListener("change", () => {
-    const v = clamp(parseInt(ui.overlapTol.value || "50",10), 10, 95);
-    state.overlapTol = v/100;
-    saveSettings();
-    updateParamUI();
-    updateOverlapBadge();
-  });
-
-  ui.spawnPadding.addEventListener("change", () => {
-    const v = clamp(parseInt(ui.spawnPadding.value || "30",10), 0, 160);
-    state.spawnPadding = v;
-    saveSettings();
-    updateParamUI();
-  });
-
-  ui.maxTrials.addEventListener("change", () => {
-    const v = clamp(parseInt(ui.maxTrials.value || "0",10), 0, 999);
-    state.maxTrials = v;
-    saveSettings();
-    updateParamUI();
-  });
-
-  ui.btnCalStart.addEventListener("click", () => {
-    // IMPORTANT: calibration fonctionne même si épreuve active (mais on stoppe)
-    if(state.running) stopRun();
-    openCalibration();
-  });
-
-  ui.btnCalClear.addEventListener("click", () => {
-    state.calibratedMaxSpan = null;
-    saveSettings();
-    updateParamUI();
-    showToast("Calibration effacée.");
-  });
-
-  function startRun(){
-    state.running = true;
-    showToast("Épreuve démarrée.");
-    if(!state.trial) state.trialIndex = 0;
-    newTrial();
-    rafLoop();
-  }
-
-  function stopRun(){
+  function resetAll(){
     state.running = false;
-    // enregistrer essai en cours comme échec si en cours
-    if(state.trial && !state.trial.endedAt){
-      endTrial(false);
-    }
-    state.trial = null;
-    state.pointerToDisk.clear();
-    state.activePointers.clear();
-    updateMetricsUI();
-    showToast("Stop.");
+    state.paused = false;
+    state.mode = 'game';
+    state.trial = 0;
+    state.success = 0;
+    state.rows = [];
+    state.current = null;
+    state.diskA = null;
+    state.diskB = null;
+    state.pointers.clear();
+    state.grab.clear();
+    state.dmax = null;
+    state.calibMaxSeen = 0;
+    updateDmaxUI();
+    setMode('game');
+    trialTxt.textContent = '0';
+    successTxt.textContent = '0';
   }
 
-  ui.btnStart.addEventListener("click", () => {
-    if(state.running) return;
-    startRun();
-  });
+  function updateDmaxUI(){
+    dmaxTxt.textContent = (state.dmax && state.dmax>0) ? `${Math.round(state.dmax)} px` : 'non calibré';
+  }
 
-  ui.btnStop.addEventListener("click", () => {
-    if(!state.running) return;
-    stopRun();
-  });
+  // ====== Parameter bindings ======
+  function readParams(){
+    state.diskDiameter = clamp(parseFloat(diskSizeInput.value || '160'), 40, 500);
+    state.overlapRequired = clamp(parseFloat(overlapReqInput.value || '50')/100, 0.10, 0.95);
+    state.minStartFrac = clamp(parseFloat(minStartFracInput.value || '0.5'), 0.1, 0.9);
+    state.maxStartFrac = clamp(parseFloat(maxStartFracInput.value || '1.0'), 0.2, 1.0);
 
-  ui.btnReset.addEventListener("click", () => {
-    state.logs = [];
-    state.trialIndex = 0;
-    state.trial = null;
-    updateMetricsUI();
-    showToast("Données réinitialisées.");
+    // enforce min < max
+    if (state.maxStartFrac <= state.minStartFrac) {
+      state.maxStartFrac = Math.min(1.0, state.minStartFrac + 0.1);
+      maxStartFracInput.value = String(state.maxStartFrac.toFixed(2));
+    }
+  }
+  [diskSizeInput, overlapReqInput, minStartFracInput, maxStartFracInput].forEach(el=>{
+    el.addEventListener('change', () => {
+      readParams();
+      // update existing disks radius
+      if (state.diskA) state.diskA.r = state.diskDiameter/2;
+      if (state.diskB) state.diskB.r = state.diskDiameter/2;
+    });
   });
+  readParams();
 
-  ui.btnExport.addEventListener("click", () => {
-    if(state.logs.length === 0){
-      showToast("Aucune donnée à exporter.");
+  // ====== Pointer handling (robust multi-touch) ======
+  function toStageCoords(e){
+    const rect = cv.getBoundingClientRect();
+    const x = (e.clientX - rect.left);
+    const y = (e.clientY - rect.top);
+    return {x,y};
+  }
+
+  function isOnDisk(p, disk){
+    if (!disk) return false;
+    const dx = p.x - disk.x, dy = p.y - disk.y;
+    return (dx*dx + dy*dy) <= disk.r*disk.r;
+  }
+
+  function assignPointerToDisk(pointerId, p){
+    // Prefer A if on A, B if on B. If on both, choose nearer.
+    const onA = isOnDisk(p, state.diskA);
+    const onB = isOnDisk(p, state.diskB);
+    if (!onA && !onB) return null;
+
+    if (onA && !onB) return 'A';
+    if (onB && !onA) return 'B';
+
+    const dA = Math.hypot(p.x - state.diskA.x, p.y - state.diskA.y);
+    const dB = Math.hypot(p.x - state.diskB.x, p.y - state.diskB.y);
+    return (dA <= dB) ? 'A' : 'B';
+  }
+
+  function updateFingerUI(){
+    fingersTxt.textContent = String(state.pointers.size);
+    if (state.mode === 'calib') {
+      calibFingers.textContent = String(state.pointers.size);
+    }
+  }
+
+  // Critical: prevent browser gestures
+  const pointerOpts = { passive: false };
+
+  stage.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+
+    // capture ensures we continue receiving move/up even if finger drifts
+    stage.setPointerCapture?.(e.pointerId);
+
+    const p = toStageCoords(e);
+    state.pointers.set(e.pointerId, {
+      x: p.x, y: p.y,
+      downTime: nowMs(),
+      lastTime: nowMs(),
+      history: [{t: nowMs(), x:p.x, y:p.y}]
+    });
+    updateFingerUI();
+
+    if (state.mode === 'game' && state.running && !state.paused && state.diskA && state.diskB) {
+      const target = assignPointerToDisk(e.pointerId, p);
+      if (target) {
+        // enforce one pointer per disk (pince)
+        if (target === 'A' && [...state.grab.values()].includes('A')) return;
+        if (target === 'B' && [...state.grab.values()].includes('B')) return;
+        state.grab.set(e.pointerId, target);
+      } else {
+        // pointer down not on disk
+      }
+      if (state.current) state.current.pointerEvents += 1;
+    }
+
+  }, pointerOpts);
+
+  stage.addEventListener('pointermove', (e) => {
+    e.preventDefault();
+
+    if (!state.pointers.has(e.pointerId)) return;
+    const p = toStageCoords(e);
+    const rec = state.pointers.get(e.pointerId);
+    const t = nowMs();
+
+    const dx = p.x - rec.x;
+    const dy = p.y - rec.y;
+
+    rec.x = p.x; rec.y = p.y;
+    rec.lastTime = t;
+    rec.history.push({t, x:p.x, y:p.y});
+    if (rec.history.length > 30) rec.history.shift();
+
+    // Calibration: update max distance if exactly two fingers
+    if (state.mode === 'calib') {
+      const ids = [...state.pointers.keys()];
+      if (ids.length >= 2) {
+        // take the first two active pointers
+        const a = state.pointers.get(ids[0]);
+        const b = state.pointers.get(ids[1]);
+        const d = Math.hypot(a.x-b.x, a.y-b.y);
+        calibDist.textContent = String(Math.round(d));
+        if (d > state.calibMaxSeen) {
+          state.calibMaxSeen = d;
+          calibMax.textContent = String(Math.round(state.calibMaxSeen));
+        }
+      } else {
+        calibDist.textContent = '0';
+      }
+      updateFingerUI();
       return;
     }
-    const cols = Object.keys(state.logs[0]);
-    const escapeCSV = (v) => {
-      if(v === null || v === undefined) return "";
-      const s = String(v);
-      if(/[",\n;]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
-      return s;
-    };
-    const lines = [];
-    lines.push(cols.join(";"));
-    for(const row of state.logs){
-      lines.push(cols.map(c => escapeCSV(row[c])).join(";"));
+
+    // Game move: move the disk that is grabbed by this pointer
+    if (state.mode === 'game' && state.running && !state.paused && state.diskA && state.diskB) {
+      const g = state.grab.get(e.pointerId);
+      if (!g) return;
+
+      const disk = (g === 'A') ? state.diskA : state.diskB;
+
+      // Move by delta to keep "grip" natural
+      disk.x += dx;
+      disk.y += dy;
+
+      // clamp inside stage
+      const w = stage.clientWidth;
+      const h = stage.clientHeight;
+      const m = disk.r + 6;
+      disk.x = clamp(disk.x, m, w - m);
+      disk.y = clamp(disk.y, m, h - m);
+
+      if (state.current) state.current.pointerEvents += 1;
     }
-    const blob = new Blob([lines.join("\n")], {type: "text/csv;charset=utf-8"});
+
+  }, pointerOpts);
+
+  function onPointerUpLike(e){
+    e.preventDefault();
+    if (state.pointers.has(e.pointerId)) state.pointers.delete(e.pointerId);
+    // count lift if it was grabbing
+    if (state.grab.has(e.pointerId)) {
+      if (state.current) state.current.lifts += 1;
+      state.grab.delete(e.pointerId);
+    }
+    updateFingerUI();
+  }
+  stage.addEventListener('pointerup', onPointerUpLike, pointerOpts);
+  stage.addEventListener('pointercancel', onPointerUpLike, pointerOpts);
+
+  // ====== Game control ======
+  function startGame(){
+    readParams();
+    state.running = true;
+    state.paused = false;
+    setMode('game');
+    if (!state.diskA || !state.diskB) randomPair();
+  }
+
+  function pauseGame(){
+    state.paused = !state.paused;
+    pauseBtn.textContent = state.paused ? 'Reprendre' : 'Pause';
+  }
+
+  function beginCalibration(){
+    // Calibration overlay mode
+    state.running = false;
+    state.paused = false;
+    setMode('calib');
+    state.calibMaxSeen = 0;
+    calibMax.textContent = '0';
+    calibDist.textContent = '0';
+    calibFingers.textContent = '0';
+    // Keep pointers empty
+    state.pointers.clear();
+    state.grab.clear();
+    updateFingerUI();
+  }
+
+  function endCalibration(){
+    // Save Dmax if meaningful
+    if (state.calibMaxSeen >= 30) {
+      state.dmax = state.calibMaxSeen;
+      updateDmaxUI();
+    }
+    setMode('game');
+    // clear pointers to avoid stuck state
+    state.pointers.clear();
+    state.grab.clear();
+    updateFingerUI();
+  }
+
+  startBtn.addEventListener('click', startGame);
+  pauseBtn.addEventListener('click', pauseGame);
+  newPairBtn.addEventListener('click', () => {
+    if (!state.running) state.running = true;
+    state.paused = false;
+    pauseBtn.textContent = 'Pause';
+    setMode('game');
+    readParams();
+    randomPair();
+  });
+  calibBtn.addEventListener('click', beginCalibration);
+  calibStopBtn.addEventListener('click', endCalibration);
+
+  resetBtn.addEventListener('click', () => {
+    resetAll();
+    pauseBtn.textContent = 'Pause';
+  });
+
+  // ====== Metrics & CSV ======
+  function finalizeTrial(successOverlapRatio){
+    const tEnd = nowMs();
+    const A = state.diskA, B = state.diskB;
+    const curr = state.current;
+    if (!curr) return;
+
+    curr.endT = tEnd;
+    curr.endDist = dist(A,B);
+    curr.overlapAtSuccess = successOverlapRatio;
+
+    // Paths: already in disk.path
+    const pathA = A.path;
+    const pathB = B.path;
+
+    // Tremor: basic proxy = sum of |delta velocity| (jerk-like)
+    const tremA = A.tremor;
+    const tremB = B.tremor;
+
+    const initDist = curr.startDist;
+    const ratioA = initDist > 0 ? (pathA / initDist) : 0;
+    const ratioB = initDist > 0 ? (pathB / initDist) : 0;
+
+    // Slips: count when grabbed pointer moves but disk not (rare) - here we approximate by "lost grab"
+    // We'll keep slips as recorded lifts only for now; you can extend later.
+    const duration = (curr.endT - curr.startT);
+
+    state.rows.push({
+      trial: curr.trial,
+      timestamp_iso: new Date().toISOString(),
+      duration_ms: Math.round(duration),
+      start_dist_px: Math.round(curr.startDist),
+      end_dist_px: Math.round(curr.endDist),
+      overlap_ratio: (curr.overlapAtSuccess ?? 0).toFixed(3),
+      disk_diameter_px: Math.round(state.diskDiameter),
+      overlap_required: state.overlapRequired.toFixed(2),
+      dmax_px: state.dmax ? Math.round(state.dmax) : '',
+      start_min_frac: state.minStartFrac.toFixed(2),
+      start_max_frac: state.maxStartFrac.toFixed(2),
+      pathA_px: Math.round(pathA),
+      pathB_px: Math.round(pathB),
+      path_ratioA: ratioA.toFixed(3),
+      path_ratioB: ratioB.toFixed(3),
+      tremorA: tremA.toFixed(1),
+      tremorB: tremB.toFixed(1),
+      lifts: curr.lifts,
+      pointer_events: curr.pointerEvents
+    });
+
+    // reset per-disk metrics for next trial
+    A.path = 0; B.path = 0;
+    A.tremor = 0; B.tremor = 0;
+    A.lastPos = {x:A.x,y:A.y};
+    B.lastPos = {x:B.x,y:B.y};
+    A.lastVel = {x:0,y:0};
+    B.lastVel = {x:0,y:0};
+
+    state.current = null;
+  }
+
+  function exportCSV(){
+    const rows = state.rows;
+    if (!rows.length) {
+      alert('Aucune donnée à exporter pour le moment.');
+      return;
+    }
+    const headers = Object.keys(rows[0]);
+    const lines = [headers.join(',')];
+    for (const r of rows) {
+      const line = headers.map(h => {
+        const v = r[h] ?? '';
+        const s = String(v).replace(/"/g,'""');
+        return (s.includes(',') || s.includes('"') || s.includes('\n')) ? `"${s}"` : s;
+      }).join(',');
+      lines.push(line);
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
-    a.download = `pince_disques_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.csv`;
+    a.download = `pince_pouce_index_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    showToast("CSV exporté.");
-  });
-
-  // ---------- RAF loop for time update ----------
-  let rafId = null;
-  function rafLoop(){
-    if(!state.running) return;
-    updateMetricsUI();
-    rafId = requestAnimationFrame(rafLoop);
   }
+  exportBtn.addEventListener('click', exportCSV);
 
-  // ---------- Init ----------
-  loadSettings();
+  // ====== Animation loop ======
+  function step(){
+    requestAnimationFrame(step);
 
-  diskA = createDisk("A");
-  diskB = createDisk("B");
-  attachPointerHandlers(diskA);
-  attachPointerHandlers(diskB);
+    // update finger UI (cheap)
+    fingersTxt.textContent = String(state.pointers.size);
 
-  setDiskSizePx(state.diskSize);
-  updateParamUI();
+    // draw
+    const dpr = cv._dpr || 1;
+    const w = cv.width, h = cv.height;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = '#070a14';
+    ctx.fillRect(0,0,w,h);
 
-  // spawn initial preview (not running)
-  setDiskPos(diskA, window.innerWidth*0.35, window.innerHeight*0.5);
-  setDiskPos(diskB, window.innerWidth*0.65, window.innerHeight*0.5);
-  updateOverlapBadge();
+    ctx.save();
+    ctx.scale(dpr,dpr);
 
-  window.addEventListener("resize", () => {
-    // keep disks inside bounds
-    const r = state.diskSize/2;
-    const pad = state.spawnPadding + r;
-    for(const el of [diskA, diskB]){
-      const p = getDiskPos(el);
-      setDiskPos(el,
-        clamp(p.x, pad, window.innerWidth - pad),
-        clamp(p.y, pad, window.innerHeight - pad)
-      );
+    // backdrop subtle grid
+    ctx.globalAlpha = 0.12;
+    ctx.strokeStyle = '#8aa0ff';
+    ctx.lineWidth = 1;
+    const grid = 48;
+    for (let x=0; x<stage.clientWidth; x+=grid){
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,stage.clientHeight); ctx.stroke();
     }
-    updateOverlapBadge();
-  });
+    for (let y=0; y<stage.clientHeight; y+=grid){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(stage.clientWidth,y); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // draw disks if in game
+    if (state.mode === 'game' && state.diskA && state.diskB) {
+      // metrics update: path & tremor per disk
+      if (state.running && !state.paused) {
+        for (const disk of [state.diskA, state.diskB]) {
+          const dx = disk.x - disk.lastPos.x;
+          const dy = disk.y - disk.lastPos.y;
+          const ds = Math.hypot(dx,dy);
+          disk.path += ds;
+
+          // velocity
+          const vx = dx; // per frame proxy
+          const vy = dy;
+          const dv = Math.hypot(vx - disk.lastVel.x, vy - disk.lastVel.y);
+          disk.tremor += dv;
+
+          disk.lastVel = {x:vx,y:vy};
+          disk.lastPos = {x:disk.x,y:disk.y};
+        }
+      }
+
+      // overlap check
+      const d = dist(state.diskA, state.diskB);
+      const r = state.diskA.r; // same
+      const ov = overlapRatioEqualCircles(d, r);
+      const ok = ov >= state.overlapRequired;
+
+      // draw overlap indicator
+      ctx.fillStyle = ok ? 'rgba(56,217,169,.14)' : 'rgba(122,162,255,.10)';
+      ctx.fillRect(0,0,stage.clientWidth,stage.clientHeight);
+
+      function drawDisk(disk, label, grabbed){
+        // shadow
+        ctx.beginPath();
+        ctx.arc(disk.x, disk.y, disk.r+2, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(0,0,0,.35)';
+        ctx.fill();
+
+        // body
+        ctx.beginPath();
+        ctx.arc(disk.x, disk.y, disk.r, 0, Math.PI*2);
+        ctx.fillStyle = grabbed ? 'rgba(122,162,255,.35)' : 'rgba(255,255,255,.14)';
+        ctx.fill();
+
+        // outline
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = grabbed ? 'rgba(122,162,255,.85)' : 'rgba(255,255,255,.35)';
+        ctx.stroke();
+
+        // label
+        ctx.fillStyle = 'rgba(233,238,252,.95)';
+        ctx.font = '700 18px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, disk.x, disk.y);
+      }
+
+      const grabbedA = [...state.grab.values()].includes('A');
+      const grabbedB = [...state.grab.values()].includes('B');
+      drawDisk(state.diskA, '1', grabbedA);
+      drawDisk(state.diskB, '2', grabbedB);
+
+      // success
+      if (state.running && !state.paused && ok) {
+        state.success += 1;
+        successTxt.textContent = String(state.success);
+
+        finalizeTrial(ov);
+
+        // generate next pair
+        readParams();
+        randomPair();
+      }
+
+      // if trial not initialized (e.g. after reset), ensure
+      if (state.running && !state.current) {
+        state.current = {
+          trial: state.trial,
+          startT: nowMs(),
+          endT: null,
+          startDist: dist(state.diskA, state.diskB),
+          endDist: null,
+          lifts: 0,
+          slips: 0,
+          pointerEvents: 0,
+          overlapAtSuccess: null
+        };
+      }
+    }
+
+    // calibration visuals
+    if (state.mode === 'calib') {
+      // simple instructions
+      ctx.fillStyle = 'rgba(255,255,255,.10)';
+      ctx.fillRect(0,0,stage.clientWidth,stage.clientHeight);
+
+      ctx.fillStyle = 'rgba(233,238,252,.92)';
+      ctx.font = '700 22px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Calibration : écartez pouce et index au maximum', stage.clientWidth/2, stage.clientHeight/2 - 10);
+
+      ctx.fillStyle = 'rgba(183,192,221,.95)';
+      ctx.font = '16px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.fillText('Touchez avec 2 doigts. Le maximum observé devient Dmax.', stage.clientWidth/2, stage.clientHeight/2 + 18);
+
+      // Draw touch points
+      const ids = [...state.pointers.keys()];
+      for (let i=0; i<ids.length; i++){
+        const p = state.pointers.get(ids[i]);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 22, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(122,162,255,.28)';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(122,162,255,.75)';
+        ctx.stroke();
+      }
+
+      // Update banner meters
+      calibFingers.textContent = String(state.pointers.size);
+      calibMax.textContent = String(Math.round(state.calibMaxSeen || 0));
+      if (ids.length >= 2) {
+        const a = state.pointers.get(ids[0]);
+        const b = state.pointers.get(ids[1]);
+        const d = Math.hypot(a.x-b.x, a.y-b.y);
+        calibDist.textContent = String(Math.round(d));
+        if (d > state.calibMaxSeen) state.calibMaxSeen = d;
+      } else {
+        calibDist.textContent = '0';
+      }
+    }
+
+    ctx.restore();
+  }
+  step();
+
+  // ====== Initial ======
+  resetAll();
+  // create first pair so user sees something when start
+  readParams();
+  randomPair();
+  updateDmaxUI();
 
 })();
 </script>
