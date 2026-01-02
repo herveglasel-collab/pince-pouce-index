@@ -1,946 +1,1056 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Pince Pouce-Index — Superposition de disques</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Pince pouce-index — Superposition de disques</title>
   <style>
     :root{
       --bg:#0b0f14;
-      --fg:#e9f0ff;
-      --muted:#a8b3c7;
-      --panel:#111826ee;
+      --panel:#111824ee;
       --panel2:#0f1520ee;
-      --accent:#5dd6ff;
-      --danger:#ff5d7a;
-      --ok:#5dff9e;
-      --shadow: 0 12px 32px rgba(0,0,0,.45);
-      --radius: 16px;
-      --pad: 12px;
-      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      --txt:#e9eef6;
+      --muted:#a9b4c2;
+      --accent:#66e3ff;
+      --danger:#ff6b6b;
+      --ok:#47e38a;
+      --shadow: 0 8px 30px rgba(0,0,0,.35);
+      --radius:16px;
     }
-    html,body{height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:var(--font); overflow:hidden;}
-    *{box-sizing:border-box;}
+    html,body{
+      height:100%;
+      margin:0;
+      background:var(--bg);
+      color:var(--txt);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      overflow:hidden;
+      touch-action:none; /* on gère nous-mêmes les touch/pointer */
+    }
     #stage{
-      position:fixed; inset:0;
-      touch-action:none; /* critical for reliable multi-touch drag */
-      background: radial-gradient(1200px 700px at 20% 20%, #112037 0%, var(--bg) 55%);
+      position:fixed;
+      inset:0;
+      width:100vw;
+      height:100vh;
+      display:block;
+      background: radial-gradient(1200px 800px at 60% 35%, #122033 0%, #0b0f14 55%, #070a0d 100%);
     }
-    canvas{display:block; width:100%; height:100%;}
-    #hudBtn{
-      position:fixed; left:10px; top:10px;
-      width:44px; height:44px; border-radius:14px;
-      border:1px solid rgba(255,255,255,.15);
-      background:rgba(17,24,38,.55);
-      color:var(--fg);
-      font-size:22px;
-      display:flex; align-items:center; justify-content:center;
-      box-shadow: var(--shadow);
-      z-index:20;
+
+    /* bouton menu minimal (prend très peu de place) */
+    #menuBtn{
+      position:fixed;
+      top:10px;
+      left:10px;
+      z-index:50;
+      background:#0f1724cc;
+      border:1px solid #20324a;
+      color:var(--txt);
+      border-radius:12px;
+      width:44px;
+      height:44px;
+      display:grid;
+      place-items:center;
+      box-shadow:var(--shadow);
+      cursor:pointer;
       user-select:none;
+      -webkit-tap-highlight-color: transparent;
     }
-    #mini{
-      position:fixed; right:10px; top:10px;
-      padding:8px 10px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(17,24,38,.40);
-      box-shadow: var(--shadow);
-      z-index:15;
+    #menuBtn:active{ transform: scale(.98); }
+
+    /* petit bandeau d’état (très discret) */
+    #statusPill{
+      position:fixed;
+      top:12px;
+      right:12px;
+      z-index:40;
+      padding:8px 12px;
+      border-radius:999px;
+      background:#0f1724cc;
+      border:1px solid #20324a;
+      color:var(--muted);
       font-size:12px;
-      max-width: 60vw;
+      box-shadow:var(--shadow);
+      pointer-events:none;
+      max-width:70vw;
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
     }
-    #drawerBackdrop{
-      position:fixed; inset:0;
-      background: rgba(0,0,0,.35);
-      z-index:30;
-      display:none;
-    }
-    #drawer{
+
+    /* panneau repliable */
+    #panel{
       position:fixed;
-      left:10px; top:10px;
-      width:min(360px, calc(100vw - 20px));
-      max-height: calc(100vh - 20px);
-      border-radius: var(--radius);
-      border:1px solid rgba(255,255,255,.14);
-      background: var(--panel);
-      box-shadow: var(--shadow);
-      z-index:40;
-      display:none;
+      left:10px;
+      top:62px;
+      z-index:60;
+      width:min(420px, calc(100vw - 20px));
+      max-height:calc(100vh - 74px);
       overflow:auto;
-      -webkit-overflow-scrolling: touch;
+      background:var(--panel);
+      border:1px solid #20324a;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      transform: translateX(calc(-100% - 20px));
+      transition: transform .2s ease;
+      pointer-events:auto;
     }
-    #drawer header{
-      display:flex; align-items:center; justify-content:space-between;
-      padding: 10px 12px;
-      border-bottom:1px solid rgba(255,255,255,.10);
-      background: var(--panel2);
-      position:sticky; top:0;
+    #panel.open{ transform: translateX(0); }
+
+    .panelHeader{
+      padding:12px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: linear-gradient(180deg, #131d2b 0%, #101826 100%);
+      border-bottom:1px solid #20324a;
+      border-radius: var(--radius) var(--radius) 0 0;
     }
-    #drawer header .title{font-weight:700; font-size:14px;}
-    #closeBtn{
-      width:36px; height:36px; border-radius:12px;
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.06);
-      color: var(--fg);
-      font-size:18px;
+    .panelHeader h2{
+      margin:0;
+      font-size:14px;
+      font-weight:700;
+      color:var(--txt);
     }
-    .section{padding: 10px 12px; border-bottom:1px solid rgba(255,255,255,.08);}
-    .row{display:flex; gap:10px; align-items:center; justify-content:space-between; margin:8px 0;}
-    label{font-size:12px; color:var(--muted);}
-    input[type="range"]{width: 170px;}
-    input[type="number"]{
-      width:90px; padding:6px 8px;
-      border-radius:12px;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(0,0,0,.22);
-      color: var(--fg);
+    .panelBody{
+      padding:12px 14px;
+      display:grid;
+      gap:12px;
+    }
+
+    .card{
+      background:var(--panel2);
+      border:1px solid #20324a;
+      border-radius:14px;
+      padding:12px;
+      display:grid;
+      gap:10px;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      align-items:center;
+    }
+    .row label{
+      font-size:13px;
+      color:var(--txt);
+    }
+    .row small{
+      color:var(--muted);
       font-size:12px;
     }
-    button.action{
-      width:100%;
-      padding:10px 12px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(93,214,255,.14);
-      color: var(--fg);
-      font-weight:700;
-      margin: 8px 0;
+
+    input[type="range"]{ width:100%; }
+    input[type="number"]{
+      width:92px;
+      padding:6px 8px;
+      border-radius:10px;
+      border:1px solid #2a3f5c;
+      background:#0b111b;
+      color:var(--txt);
+      font-size:13px;
     }
-    button.secondary{
-      width:100%;
+    button{
+      border:1px solid #2a3f5c;
+      background:#0f1724;
+      color:var(--txt);
       padding:10px 12px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(255,255,255,.07);
-      color: var(--fg);
-      font-weight:700;
-      margin: 8px 0;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:650;
+      box-shadow: 0 6px 18px rgba(0,0,0,.22);
+      -webkit-tap-highlight-color: transparent;
     }
-    .kpi{
+    button:active{ transform: scale(.99); }
+    .btnRow{ display:flex; gap:10px; flex-wrap:wrap; }
+    .primary{ border-color:#1f5d73; background:#0d2530; }
+    .good{ border-color:#1f6a46; background:#0b2a1a; }
+    .danger{ border-color:#7a2b2b; background:#2a0b0b; }
+
+    .metricGrid{
       display:grid;
       grid-template-columns: 1fr 1fr;
       gap:10px;
-      margin-top:6px;
     }
-    .card{
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(0,0,0,.18);
+    .metric{
+      background:#0b111b;
+      border:1px solid #20324a;
+      border-radius:12px;
       padding:10px;
+      display:grid;
+      gap:4px;
+      min-width:0;
     }
-    .card .k{font-size:11px; color:var(--muted);}
-    .card .v{font-size:14px; font-weight:800; margin-top:4px;}
-    .hint{font-size:12px; color:var(--muted); line-height:1.35;}
-    .pill{
-      display:inline-flex; gap:6px; align-items:center;
-      padding:4px 8px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(0,0,0,.18);
-      font-size:11px; color:var(--muted);
-    }
+    .metric .k{ color:var(--muted); font-size:12px; }
+    .metric .v{ color:var(--txt); font-size:14px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-    /* Calibration modal (full screen, minimal UI) */
-    #calibModal{
-      position:fixed; inset:0;
+    /* overlay calibration */
+    #overlay{
+      position:fixed;
+      inset:0;
+      z-index:80;
+      background: rgba(0,0,0,.55);
       display:none;
-      z-index:60;
-      background: rgba(5,8,12,.92);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      padding: 18px;
+      place-items:center;
+      padding:18px;
     }
-    #calibBox{
-      max-width: 680px;
-      margin: 0 auto;
-      border-radius: 22px;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(17,24,38,.55);
-      box-shadow: var(--shadow);
-      padding: 16px;
+    #overlay.show{ display:grid; }
+    #overlay .box{
+      width:min(520px, 100%);
+      background:#0f1724f2;
+      border:1px solid #2a3f5c;
+      border-radius:18px;
+      padding:16px;
+      box-shadow:var(--shadow);
+      display:grid;
+      gap:12px;
     }
-    #calibTitle{font-weight:900; font-size:18px;}
-    #calibText{margin-top:10px; color:var(--muted); line-height:1.45; font-size:13px;}
-    #calibBarWrap{
-      margin-top:14px;
-      height: 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.10);
-      overflow:hidden;
-      background: rgba(0,0,0,.25);
-    }
-    #calibBar{
-      height:100%;
-      width:0%;
-      background: linear-gradient(90deg, rgba(93,214,255,.35), rgba(93,255,158,.55));
-    }
-    #calibReadout{
-      margin-top:10px;
-      display:flex; justify-content:space-between; align-items:center;
-      font-size:12px; color:var(--muted);
+    #overlay h3{ margin:0; font-size:16px; }
+    #overlay p{ margin:0; color:var(--muted); line-height:1.35; }
+    #overlay .hint{
+      display:flex;
       gap:10px;
-      flex-wrap:wrap;
+      align-items:center;
+      color:#d7e4f4;
+      background:#0b111b;
+      border:1px solid #20324a;
+      border-radius:14px;
+      padding:10px 12px;
+      font-size:13px;
     }
-    #calibButtons{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;}
-    #calibButtons button{flex:1;}
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   </style>
 </head>
 <body>
-  <div id="stage">
-    <canvas id="c"></canvas>
-  </div>
+  <canvas id="stage"></canvas>
 
-  <button id="hudBtn" aria-label="Ouvrir le menu">☰</button>
-  <div id="mini">Essais: <span id="miniTrials">0</span> • Calibrage: <span id="miniCalib">non</span></div>
+  <div id="menuBtn" title="Réglages / Export" aria-label="Menu">☰</div>
+  <div id="statusPill">Prêt</div>
 
-  <div id="drawerBackdrop"></div>
-  <aside id="drawer" role="dialog" aria-modal="true">
-    <header>
-      <div class="title">Pince pouce-index — Paramètres & mesures</div>
-      <button id="closeBtn" aria-label="Fermer">✕</button>
-    </header>
-
-    <div class="section">
-      <div class="hint">
-        L’enfant pose <b>un doigt sur chaque disque</b> et les rapproche jusqu’à recouvrement suffisant.
-        Les disques changent automatiquement.
-      </div>
-      <button class="action" id="calibBtn">Étalonner l’écart max (pouce–index)</button>
-      <div class="row">
-        <span class="pill">Écart max:</span>
-        <span class="pill" id="spanPill">—</span>
-      </div>
+  <div id="panel" aria-label="Panneau de réglages">
+    <div class="panelHeader">
+      <h2>Réglages & mesures</h2>
+      <button id="closePanelBtn" title="Fermer">✕</button>
     </div>
+    <div class="panelBody">
 
-    <div class="section">
-      <div class="row">
-        <label for="sizeRange">Taille des disques</label>
-        <input id="sizeRange" type="range" min="22" max="120" value="54" />
+      <div class="card">
+        <div class="row">
+          <div>
+            <label><b>Calibration pince</b></label><br/>
+            <small>Mesure l’écart max pouce–index sur cet écran.</small>
+          </div>
+          <div class="btnRow">
+            <button id="startCalBtn" class="primary">Démarrer</button>
+          </div>
+        </div>
+        <div class="row">
+          <small>Distance max calibrée</small>
+          <div class="mono" id="calValue">—</div>
+        </div>
+        <div class="row">
+          <small>Distance initiale min (50%)</small>
+          <div class="mono" id="minStartValue">—</div>
+        </div>
       </div>
-      <div class="row">
-        <label for="tolRange">Recouvrement toléré</label>
-        <input id="tolRange" type="range" min="0.30" max="0.90" step="0.01" value="0.50" />
-      </div>
-      <div class="row">
-        <span class="pill">Rayon:</span>
-        <span class="pill" id="rPill">54 px</span>
-      </div>
-      <div class="row">
-        <span class="pill">Tolérance:</span>
-        <span class="pill" id="tPill">50%</span>
-      </div>
-      <button class="secondary" id="resetBtn">Réinitialiser la session (compteurs & logs)</button>
-    </div>
 
-    <div class="section">
-      <div class="kpi">
-        <div class="card"><div class="k">Essais réussis</div><div class="v" id="k_succ">0</div></div>
-        <div class="card"><div class="k">Tentatives totales</div><div class="v" id="k_attempts">0</div></div>
-        <div class="card"><div class="k">Levers de doigts</div><div class="v" id="k_lifts">0</div></div>
-        <div class="card"><div class="k">Dérapages</div><div class="v" id="k_slips">0</div></div>
-      </div>
-      <div class="kpi" style="margin-top:10px;">
-        <div class="card"><div class="k">Dernière durée</div><div class="v" id="k_lastDur">—</div></div>
-        <div class="card"><div class="k">Dernière latence</div><div class="v" id="k_lastLat">—</div></div>
-        <div class="card"><div class="k">Dernier ratio distance</div><div class="v" id="k_lastRatio">—</div></div>
-        <div class="card"><div class="k">Dernier tremblement</div><div class="v" id="k_lastTrem">—</div></div>
-      </div>
-    </div>
+      <div class="card">
+        <div class="row">
+          <div>
+            <label><b>Taille des disques</b></label><br/>
+            <small>Rayon en % du petit côté écran.</small>
+          </div>
+          <input id="radiusPct" type="range" min="5" max="20" step="1" value="10" />
+        </div>
+        <div class="row">
+          <small>Rayon</small>
+          <div class="mono" id="radiusLabel">—</div>
+        </div>
 
-    <div class="section">
-      <button class="action" id="exportBtn">Exporter CSV (tous les essais)</button>
-      <div class="hint">
-        Le CSV contient une ligne par essai: temps, distances, vitesses, levers, dérapages, tremblement, etc.
-      </div>
-    </div>
-  </aside>
+        <div class="row">
+          <div>
+            <label><b>Seuil recouvrement</b></label><br/>
+            <small>Disparition si recouvrement ≥ seuil.</small>
+          </div>
+          <input id="overlapTh" type="range" min="0.3" max="0.95" step="0.05" value="0.5" />
+        </div>
+        <div class="row">
+          <small>Seuil</small>
+          <div class="mono" id="overlapLabel">—</div>
+        </div>
 
-  <!-- Calibration modal -->
-  <div id="calibModal">
-    <div id="calibBox">
-      <div id="calibTitle">Étalonnage de l’écart maximum</div>
-      <div id="calibText">
-        Posez <b>pouce</b> et <b>index</b> sur l’écran et écartez-les au maximum (confortable), puis maintenez 2 secondes.
-        On mesure la <b>distance maximale entre les 2 touches</b>. (Ne pas faire glisser un doigt seul : il faut deux touches en même temps.)
+        <div class="btnRow">
+          <button id="resetBtn" class="danger">Réinitialiser session</button>
+          <button id="exportBtn" class="good">Exporter CSV</button>
+        </div>
       </div>
-      <div id="calibBarWrap"><div id="calibBar"></div></div>
-      <div id="calibReadout">
-        <div>Distance instantanée: <b id="calibNow">—</b></div>
-        <div>Max mesuré: <b id="calibMax">—</b></div>
-        <div>Progression: <b id="calibProg">0%</b></div>
+
+      <div class="card">
+        <label><b>Métriques (dernier essai)</b></label>
+        <div class="metricGrid" id="metricsGrid"></div>
       </div>
-      <div id="calibButtons">
-        <button class="action" id="calibStart">Démarrer</button>
-        <button class="secondary" id="calibCancel">Annuler</button>
+
+      <div class="card">
+        <label><b>Métriques (session)</b></label>
+        <div class="metricGrid" id="sessionGrid"></div>
       </div>
+
+      <div class="card">
+        <small>
+          Astuce : fermez ce panneau (✕) pour avoir l’écran presque entièrement dédié à la tâche.
+        </small>
+      </div>
+
     </div>
   </div>
 
-<script>
-(() => {
-  // ===== Canvas setup (HiDPI) =====
-  const canvas = document.getElementById('c');
-  const ctx = canvas.getContext('2d');
+  <div id="overlay">
+    <div class="box">
+      <h3>Calibration de la pince</h3>
+      <p>
+        Posez <b>deux doigts</b> (pouce + index) sur l’écran puis <b>écartez-les</b> jusqu’à l’ouverture maximale confortable.
+        Maintenez 1 seconde, puis <b>levez les deux doigts</b> pour valider.
+      </p>
+      <div class="hint">
+        <span>📏</span>
+        <span>Distance max détectée : <span class="mono" id="calLive">0</span> px</span>
+      </div>
+      <div class="btnRow">
+        <button id="cancelCalBtn" class="danger">Annuler</button>
+      </div>
+    </div>
+  </div>
 
-  function resize(){
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(window.innerWidth * dpr);
-    canvas.height = Math.floor(window.innerHeight * dpr);
-    canvas.style.width = window.innerWidth + 'px';
-    canvas.style.height = window.innerHeight + 'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  window.addEventListener('resize', resize, {passive:true});
-  resize();
+  <script>
+    (() => {
+      // ======= DOM =======
+      const canvas = document.getElementById('stage');
+      const ctx = canvas.getContext('2d', { alpha: false });
 
-  // ===== UI elements =====
-  const hudBtn = document.getElementById('hudBtn');
-  const drawer = document.getElementById('drawer');
-  const backdrop = document.getElementById('drawerBackdrop');
-  const closeBtn = document.getElementById('closeBtn');
+      const menuBtn = document.getElementById('menuBtn');
+      const panel = document.getElementById('panel');
+      const closePanelBtn = document.getElementById('closePanelBtn');
+      const statusPill = document.getElementById('statusPill');
 
-  const sizeRange = document.getElementById('sizeRange');
-  const tolRange  = document.getElementById('tolRange');
-  const rPill = document.getElementById('rPill');
-  const tPill = document.getElementById('tPill');
+      const startCalBtn = document.getElementById('startCalBtn');
+      const cancelCalBtn = document.getElementById('cancelCalBtn');
+      const overlay = document.getElementById('overlay');
+      const calLive = document.getElementById('calLive');
 
-  const calibBtn = document.getElementById('calibBtn');
-  const spanPill = document.getElementById('spanPill');
+      const calValue = document.getElementById('calValue');
+      const minStartValue = document.getElementById('minStartValue');
 
-  const resetBtn = document.getElementById('resetBtn');
-  const exportBtn = document.getElementById('exportBtn');
+      const radiusPctEl = document.getElementById('radiusPct');
+      const radiusLabel = document.getElementById('radiusLabel');
 
-  const miniTrials = document.getElementById('miniTrials');
-  const miniCalib  = document.getElementById('miniCalib');
+      const overlapThEl = document.getElementById('overlapTh');
+      const overlapLabel = document.getElementById('overlapLabel');
 
-  const KPI = {
-    succ: document.getElementById('k_succ'),
-    attempts: document.getElementById('k_attempts'),
-    lifts: document.getElementById('k_lifts'),
-    slips: document.getElementById('k_slips'),
-    lastDur: document.getElementById('k_lastDur'),
-    lastLat: document.getElementById('k_lastLat'),
-    lastRatio: document.getElementById('k_lastRatio'),
-    lastTrem: document.getElementById('k_lastTrem'),
-  };
+      const resetBtn = document.getElementById('resetBtn');
+      const exportBtn = document.getElementById('exportBtn');
 
-  function openDrawer(){
-    drawer.style.display = 'block';
-    backdrop.style.display = 'block';
-  }
-  function closeDrawer(){
-    drawer.style.display = 'none';
-    backdrop.style.display = 'none';
-  }
-  hudBtn.addEventListener('click', openDrawer);
-  closeBtn.addEventListener('click', closeDrawer);
-  backdrop.addEventListener('click', closeDrawer);
+      const metricsGrid = document.getElementById('metricsGrid');
+      const sessionGrid = document.getElementById('sessionGrid');
 
-  // ===== Calibration modal =====
-  const calibModal = document.getElementById('calibModal');
-  const calibStartBtn = document.getElementById('calibStart');
-  const calibCancelBtn = document.getElementById('calibCancel');
-  const calibBar = document.getElementById('calibBar');
-  const calibNow = document.getElementById('calibNow');
-  const calibMax = document.getElementById('calibMax');
-  const calibProg = document.getElementById('calibProg');
+      // ======= STATE =======
+      let W=0, H=0, DPR=1;
 
-  let calibrating = false;
-  let calibT0 = 0;
-  let calibHoldMs = 2000;     // must hold long enough
-  let calibMaxPx = null;
-  let calibInstantPx = 0;
+      // task params
+      let radiusPx = 80;
+      let overlapThreshold = 0.5;
 
-  function showCalib(){
-    calibrating = false;
-    calibT0 = 0;
-    calibMaxPx = null;
-    calibInstantPx = 0;
-    calibBar.style.width = '0%';
-    calibNow.textContent = '—';
-    calibMax.textContent = '—';
-    calibProg.textContent = '0%';
-    calibModal.style.display = 'block';
-  }
-  function hideCalib(){
-    calibModal.style.display = 'none';
-  }
-  calibBtn.addEventListener('click', () => {
-    closeDrawer();
-    showCalib();
-  });
-  calibCancelBtn.addEventListener('click', () => {
-    calibrating = false;
-    hideCalib();
-  });
+      // calibration
+      let calibMode = false;
+      let pinchMaxPx = null;
+      let pinchMaxLive = 0;
+      let minStartDistPx = null; // 0.5 * pinchMaxPx
+      let maxStartDistPx = null; // pinchMaxPx
 
-  calibStartBtn.addEventListener('click', () => {
-    calibrating = true;
-    calibT0 = performance.now();
-    calibMaxPx = 0;
-    calibStartBtn.disabled = true;
-    calibStartBtn.textContent = 'En cours… (2 doigts)';
-  });
+      // circles
+      const circleA = { x: 0, y: 0, r: 80 };
+      const circleB = { x: 0, y: 0, r: 80 };
 
-  // ===== Task parameters =====
-  let radius = parseInt(sizeRange.value, 10);  // px
-  let tol = parseFloat(tolRange.value);        // overlap fraction threshold
+      // touch assignment: one finger per circle
+      let touchA = null; // { id, startX, startY, lastX, lastY, path, startTime, slipCount, outOfCircle }
+      let touchB = null;
 
-  function updateParamUI(){
-    rPill.textContent = `${radius} px`;
-    tPill.textContent = `${Math.round(tol*100)}%`;
-    spanPill.textContent = (maxPinchPx ? `${Math.round(maxPinchPx)} px` : '—');
-    miniCalib.textContent = maxPinchPx ? 'oui' : 'non';
-  }
-  sizeRange.addEventListener('input', () => {
-    radius = parseInt(sizeRange.value, 10);
-    updateParamUI();
-    // keep discs within bounds
-    clampDiscs();
-  });
-  tolRange.addEventListener('input', () => {
-    tol = parseFloat(tolRange.value);
-    updateParamUI();
-  });
+      // trial logging
+      let trialActive = false;
+      let trialIndex = 0;
+      let trialStartTime = 0;
+      let firstMoveTime = null;
 
-  // ===== Core state =====
-  const stage = document.getElementById('stage');
+      let lifts = 0;
+      let slips = 0;
 
-  // calibrated maximum pinch span (px)
-  let maxPinchPx = null;
-  const initialSpanSafety = 0.95; // generate trials <= 95% of max
+      let distA = 0;
+      let distB = 0;
 
-  // discs
-  const discA = { x: 120, y: 180, id: null, offX:0, offY:0 };
-  const discB = { x: 260, y: 180, id: null, offX:0, offY:0 };
+      let jitterA = 0;
+      let jitterB = 0;
 
-  // trial/session counters
-  let successCount = 0;
-  let attemptCount = 0;
-  let liftCount = 0;
-  let slipCount = 0;
+      let lastMoveDirA = null; // angle
+      let lastMoveDirB = null;
 
-  // per-trial metrics
-  let trial = null; // object created at spawnPair()
+      let initialCenterDist = 0;
 
-  // logs
-  const logs = []; // one row per successful trial
+      // session logs
+      const rows = []; // each trial row object
+      let sessionTrials = 0;
 
-  function resetSession(){
-    successCount = 0;
-    attemptCount = 0;
-    liftCount = 0;
-    slipCount = 0;
-    logs.length = 0;
-    trial = null;
-    spawnPair(true);
-    updateKPIs();
-  }
-  resetBtn.addEventListener('click', resetSession);
+      // ======= UTILS =======
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+      const now = () => performance.now();
 
-  // ===== Helpers =====
-  function clamp(v,min,max){ return Math.max(min, Math.min(max,v)); }
-  function dist(ax,ay,bx,by){ const dx=ax-bx, dy=ay-by; return Math.hypot(dx,dy); }
-
-  function clampDiscs(){
-    const w = window.innerWidth, h = window.innerHeight;
-    discA.x = clamp(discA.x, radius, w-radius);
-    discA.y = clamp(discA.y, radius, h-radius);
-    discB.x = clamp(discB.x, radius, w-radius);
-    discB.y = clamp(discB.y, radius, h-radius);
-  }
-
-  // overlap fraction (intersection area / area of one circle), for equal radii
-  function overlapFractionEqualR(d, r){
-    if (d >= 2*r) return 0;
-    if (d <= 0) return 1;
-    const part1 = 2 * r*r * Math.acos(d/(2*r));
-    const part2 = 0.5 * d * Math.sqrt(Math.max(0, 4*r*r - d*d));
-    const inter = part1 - part2;
-    const area = Math.PI * r*r;
-    return inter / area;
-  }
-
-  function randBetween(a,b){ return a + Math.random()*(b-a); }
-
-  // spawn a pair with initial distance constrained by maxPinchPx (if calibrated)
-  function spawnPair(isFirst=false){
-    const w = window.innerWidth, h = window.innerHeight;
-    const pad = radius + 10;
-
-    // Determine allowed initial distance
-    const fallbackMax = 0.60 * Math.min(w,h); // if not calibrated
-    const allowedMax = (maxPinchPx ? maxPinchPx : fallbackMax) * initialSpanSafety;
-
-    // Choose random centers with distance <= allowedMax
-    // We'll attempt multiple times; then degrade gracefully.
-    let tries = 0;
-    let ax,ay,bx,by, d;
-    do {
-      ax = randBetween(pad, w-pad);
-      ay = randBetween(pad, h-pad);
-      const angle = randBetween(0, Math.PI*2);
-      const rdist = randBetween(Math.max(2*radius*0.2, 40), allowedMax); // not too tiny
-      bx = ax + Math.cos(angle)*rdist;
-      by = ay + Math.sin(angle)*rdist;
-      bx = clamp(bx, pad, w-pad);
-      by = clamp(by, pad, h-pad);
-      d = dist(ax,ay,bx,by);
-      tries++;
-    } while ((d > allowedMax) && tries < 60);
-
-    // if still too large, force B close to A
-    if (d > allowedMax){
-      const angle = randBetween(0, Math.PI*2);
-      bx = clamp(ax + Math.cos(angle)*allowedMax, pad, w-pad);
-      by = clamp(ay + Math.sin(angle)*allowedMax, pad, h-pad);
-      d = dist(ax,ay,bx,by);
-    }
-
-    discA.x = ax; discA.y = ay;
-    discB.x = bx; discB.y = by;
-    discA.id = null; discB.id = null;
-
-    attemptCount += isFirst ? 0 : 1;
-
-    const now = performance.now();
-    trial = {
-      t_spawn: now,
-      t_firstTouch: null,
-      t_bothTouch: null,
-      t_success: null,
-
-      initDist: d,
-
-      // path lengths
-      pathA: 0,
-      pathB: 0,
-
-      // samples for tremor
-      // We'll compute RMS acceleration proxy from successive velocities.
-      lastA: null,
-      lastB: null,
-      velA: null,
-      velB: null,
-      tremorAccA: 0,
-      tremorAccB: 0,
-      tremorN: 0,
-
-      // events
-      lifts: 0,
-      slips: 0,
-    };
-
-    updateKPIs();
-  }
-
-  function updateKPIs(lastRow=null){
-    KPI.succ.textContent = successCount;
-    KPI.attempts.textContent = attemptCount;
-    KPI.lifts.textContent = liftCount;
-    KPI.slips.textContent = slipCount;
-    miniTrials.textContent = successCount;
-
-    if (!lastRow){
-      // keep prior
-      return;
-    }
-    KPI.lastDur.textContent = (lastRow.duration_ms != null) ? `${Math.round(lastRow.duration_ms)} ms` : '—';
-    KPI.lastLat.textContent = (lastRow.latency_ms != null) ? `${Math.round(lastRow.latency_ms)} ms` : '—';
-    KPI.lastRatio.textContent = (lastRow.path_ratio != null) ? `${lastRow.path_ratio.toFixed(2)}×` : '—';
-    KPI.lastTrem.textContent = (lastRow.tremor_index != null) ? `${lastRow.tremor_index.toFixed(2)}` : '—';
-  }
-
-  // ===== Touch logic =====
-  function touchPos(t){
-    // clientX/Y already in CSS pixels
-    return { x: t.clientX, y: t.clientY };
-  }
-
-  function insideDisc(x,y,disc){
-    return dist(x,y,disc.x,disc.y) <= radius;
-  }
-
-  function assignTouchToDisc(t){
-    const p = touchPos(t);
-    // Prefer the disc that is hit
-    const hitA = insideDisc(p.x,p.y,discA);
-    const hitB = insideDisc(p.x,p.y,discB);
-
-    // Must have one finger per disc: ignore if disc already assigned
-    if (hitA && !discA.id){
-      discA.id = t.identifier;
-      discA.offX = discA.x - p.x;
-      discA.offY = discA.y - p.y;
-      return true;
-    }
-    if (hitB && !discB.id){
-      discB.id = t.identifier;
-      discB.offX = discB.x - p.x;
-      discB.offY = discB.y - p.y;
-      return true;
-    }
-    return false;
-  }
-
-  function releaseTouch(id){
-    if (discA.id === id) discA.id = null;
-    if (discB.id === id) discB.id = null;
-  }
-
-  function countLift(){
-    liftCount++;
-    if (trial) trial.lifts++;
-    updateKPIs();
-  }
-
-  function countSlip(){
-    slipCount++;
-    if (trial) trial.slips++;
-    updateKPIs();
-  }
-
-  function updateTrialTouchTimes(){
-    if (!trial) return;
-    const now = performance.now();
-    if (trial.t_firstTouch === null && (discA.id || discB.id)){
-      trial.t_firstTouch = now;
-    }
-    if (trial.t_bothTouch === null && (discA.id && discB.id)){
-      trial.t_bothTouch = now;
-    }
-  }
-
-  function updateTremor(discName, x, y){
-    if (!trial) return;
-    const now = performance.now();
-    if (discName === 'A'){
-      if (!trial.lastA){
-        trial.lastA = {x,y,t:now};
-        trial.velA = null;
-        return;
+      function setStatus(msg){
+        statusPill.textContent = msg;
       }
-      const dt = Math.max(1, now - trial.lastA.t); // ms
-      const vx = (x - trial.lastA.x) / dt; // px/ms
-      const vy = (y - trial.lastA.y) / dt;
-      if (trial.velA){
-        const ax = (vx - trial.velA.vx) / dt;
-        const ay = (vy - trial.velA.vy) / dt;
-        trial.tremorAccA += Math.hypot(ax,ay);
-        trial.tremorN += 1;
-      }
-      trial.velA = {vx,vy};
-      trial.lastA = {x,y,t:now};
-    } else {
-      if (!trial.lastB){
-        trial.lastB = {x,y,t:now};
-        trial.velB = null;
-        return;
-      }
-      const dt = Math.max(1, now - trial.lastB.t);
-      const vx = (x - trial.lastB.x) / dt;
-      const vy = (y - trial.lastB.y) / dt;
-      if (trial.velB){
-        const ax = (vx - trial.velB.vx) / dt;
-        const ay = (vy - trial.velB.vy) / dt;
-        trial.tremorAccB += Math.hypot(ax,ay);
-        trial.tremorN += 1;
-      }
-      trial.velB = {vx,vy};
-      trial.lastB = {x,y,t:now};
-    }
-  }
 
-  function moveDiscByTouch(disc, t, discName){
-    const p = touchPos(t);
-    const nx = p.x + disc.offX;
-    const ny = p.y + disc.offY;
+      function resize(){
+        DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+        W = Math.floor(window.innerWidth);
+        H = Math.floor(window.innerHeight);
+        canvas.width = Math.floor(W * DPR);
+        canvas.height = Math.floor(H * DPR);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(DPR,0,0,DPR,0,0);
 
-    const w = window.innerWidth, h = window.innerHeight;
-    const cx = clamp(nx, radius, w-radius);
-    const cy = clamp(ny, radius, h-radius);
+        updateRadiusFromPct();
+        circleA.r = radiusPx;
+        circleB.r = radiusPx;
 
-    const dx = cx - disc.x;
-    const dy = cy - disc.y;
-    const step = Math.hypot(dx,dy);
-
-    if (discName === 'A') trial.pathA += step;
-    else trial.pathB += step;
-
-    disc.x = cx; disc.y = cy;
-
-    // Slip heuristic: if finger point strays outside disc radius (while still dragging)
-    // (common in kids: finger slides off disc)
-    const fingerDist = dist(p.x,p.y,disc.x,disc.y);
-    if (fingerDist > radius * 1.10){ // small tolerance
-      countSlip();
-    }
-
-    updateTremor(discName, disc.x, disc.y);
-  }
-
-  function checkSuccess(){
-    if (!trial) return false;
-    const d = dist(discA.x,discA.y,discB.x,discB.y);
-    const frac = overlapFractionEqualR(d, radius);
-    if (frac >= tol){
-      const now = performance.now();
-      trial.t_success = now;
-
-      const latency = (trial.t_firstTouch != null) ? (trial.t_firstTouch - trial.t_spawn) : null;
-      const duration = (trial.t_bothTouch != null) ? (now - trial.t_bothTouch) : (trial.t_firstTouch != null ? (now - trial.t_firstTouch) : null);
-
-      const totalPath = (trial.pathA + trial.pathB);
-      const pathRatio = trial.initDist > 0 ? (totalPath / trial.initDist) : null;
-
-      // speed (approx): totalPath / duration
-      const speed = (duration && duration > 0) ? (totalPath / duration) : null; // px/ms
-
-      // Tremor index: average accel magnitude proxy across both discs.
-      const trem = (trial.tremorN > 0) ? ((trial.tremorAccA + trial.tremorAccB) / trial.tremorN) : null;
-
-      const row = {
-        timestamp_iso: new Date().toISOString(),
-        radius_px: radius,
-        tolerance: tol,
-        max_pinch_px: maxPinchPx ?? '',
-        init_dist_px: trial.initDist,
-        overlap_reached: frac,
-        latency_ms: latency,
-        duration_ms: duration,
-        pathA_px: trial.pathA,
-        pathB_px: trial.pathB,
-        path_total_px: totalPath,
-        path_ratio: pathRatio,
-        speed_px_per_ms: speed,
-        lifts_trial: trial.lifts,
-        slips_trial: trial.slips,
-        tremor_index: trem
-      };
-
-      logs.push(row);
-      successCount++;
-      updateKPIs(row);
-
-      // Spawn next
-      spawnPair(false);
-      return true;
-    }
-    return false;
-  }
-
-  // Prevent page scroll on iOS/Android
-  document.addEventListener('touchmove', (e) => e.preventDefault(), {passive:false});
-
-  stage.addEventListener('touchstart', (e) => {
-    // Calibration captures touches too, but in modal we still read from stage.
-    for (const t of e.changedTouches){
-      assignTouchToDisc(t);
-    }
-    updateTrialTouchTimes();
-  }, {passive:false});
-
-  stage.addEventListener('touchmove', (e) => {
-    // Calibration: if active, update distance between the 2 touches
-    if (calibModal.style.display === 'block' && calibrating){
-      if (e.touches.length >= 2){
-        const t1 = e.touches[0], t2 = e.touches[1];
-        const p1 = touchPos(t1), p2 = touchPos(t2);
-        calibInstantPx = dist(p1.x,p1.y,p2.x,p2.y);
-        calibMaxPx = Math.max(calibMaxPx || 0, calibInstantPx);
-
-        calibNow.textContent = `${Math.round(calibInstantPx)} px`;
-        calibMax.textContent = `${Math.round(calibMaxPx)} px`;
-
-        const elapsed = performance.now() - calibT0;
-        const prog = clamp(elapsed / calibHoldMs, 0, 1);
-        calibBar.style.width = `${Math.round(prog*100)}%`;
-        calibProg.textContent = `${Math.round(prog*100)}%`;
-
-        if (prog >= 1){
-          // Commit calibration
-          maxPinchPx = Math.max(40, calibMaxPx); // floor
-          calibrating = false;
-          calibStartBtn.disabled = false;
-          calibStartBtn.textContent = 'Démarrer';
-          hideCalib();
-          updateParamUI();
-          // Make sure current pair respects constraint by respawning
-          spawnPair(true);
+        // if calibration exists, ensure max distance not beyond screen diagonal
+        if (pinchMaxPx != null){
+          const diag = Math.hypot(W,H);
+          pinchMaxPx = clamp(pinchMaxPx, 40, diag);
+          minStartDistPx = 0.5 * pinchMaxPx;
+          maxStartDistPx = pinchMaxPx;
+          updateCalLabels();
         }
-      } else {
-        // Not enough touches — keep showing progression but do not advance
-        calibNow.textContent = '— (2 doigts requis)';
-        // do not reset elapsed; user can continue
+
+        // regenerate if not active dragging
+        if (!touchA && !touchB && !calibMode){
+          newTrial();
+        }
       }
-      return;
-    }
 
-    // Normal task
-    if (!trial) return;
-    // Update each disc based on its assigned touch identifier
-    for (const t of e.touches){
-      if (discA.id === t.identifier) moveDiscByTouch(discA, t, 'A');
-      if (discB.id === t.identifier) moveDiscByTouch(discB, t, 'B');
-    }
-    updateTrialTouchTimes();
-    checkSuccess();
-  }, {passive:false});
-
-  stage.addEventListener('touchend', (e) => {
-    // calibration ends naturally; no special handling
-    for (const t of e.changedTouches){
-      const wasA = (discA.id === t.identifier);
-      const wasB = (discB.id === t.identifier);
-      if (wasA || wasB){
-        countLift();
+      function updateRadiusFromPct(){
+        const pct = parseFloat(radiusPctEl.value);
+        const base = Math.min(W,H);
+        radiusPx = Math.round((pct/100) * base);
+        radiusLabel.textContent = radiusPx + ' px';
       }
-      releaseTouch(t.identifier);
-    }
-  }, {passive:false});
 
-  stage.addEventListener('touchcancel', (e) => {
-    for (const t of e.changedTouches){
-      const wasA = (discA.id === t.identifier);
-      const wasB = (discB.id === t.identifier);
-      if (wasA || wasB){
-        countLift();
+      function updateOverlapLabel(){
+        overlapThreshold = parseFloat(overlapThEl.value);
+        overlapLabel.textContent = Math.round(overlapThreshold*100) + '%';
       }
-      releaseTouch(t.identifier);
-    }
-  }, {passive:false});
 
-  // ===== Export CSV =====
-  function toCSV(rows){
-    if (!rows.length) return 'timestamp_iso\n';
-    const headers = Object.keys(rows[0]);
-    const esc = (v) => {
-      const s = (v === null || v === undefined) ? '' : String(v);
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
-      return s;
-    };
-    const lines = [headers.join(',')];
-    for (const r of rows){
-      lines.push(headers.map(h => esc(r[h])).join(','));
-    }
-    return lines.join('\n');
-  }
+      function updateCalLabels(){
+        if (pinchMaxPx == null){
+          calValue.textContent = '—';
+          minStartValue.textContent = '—';
+        } else {
+          calValue.textContent = `${Math.round(pinchMaxPx)} px`;
+          minStartValue.textContent = `${Math.round(minStartDistPx)} px`;
+        }
+      }
 
-  function downloadText(filename, text){
-    const blob = new Blob([text], {type:'text/csv;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 500);
-  }
+      function dist(x1,y1,x2,y2){
+        return Math.hypot(x2-x1, y2-y1);
+      }
 
-  exportBtn.addEventListener('click', () => {
-    const csv = toCSV(logs);
-    const name = `pince_pouce_index_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`;
-    downloadText(name, csv);
-  });
+      function overlapRatio(c1, c2){
+        // Intersection area of two circles / area of smaller circle (same size here)
+        const r = c1.r; // equal
+        const d = dist(c1.x,c1.y,c2.x,c2.y);
+        if (d >= 2*r) return 0;
+        if (d <= 0) return 1;
 
-  // ===== Render loop =====
-  function drawDisc(disc, label, color){
-    // soft shadow
-    ctx.beginPath();
-    ctx.arc(disc.x, disc.y, radius+2, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(0,0,0,.25)';
-    ctx.fill();
+        // area intersection formula
+        const part1 = 2 * Math.acos(clamp(d/(2*r), -1, 1));
+        const area = 0.5 * r*r * (part1 - Math.sin(part1));
+        const areaCircle = Math.PI * r*r;
+        return clamp(area / areaCircle, 0, 1);
+      }
 
-    // main disc
-    ctx.beginPath();
-    ctx.arc(disc.x, disc.y, radius, 0, Math.PI*2);
-    ctx.fillStyle = color;
-    ctx.fill();
+      function withinCircle(cx,cy,r, x,y){
+        return dist(cx,cy,x,y) <= r;
+      }
 
-    // border
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(255,255,255,.25)';
-    ctx.stroke();
+      function rand(min,max){
+        return min + Math.random()*(max-min);
+      }
 
-    // label
-    ctx.fillStyle = 'rgba(0,0,0,.55)';
-    ctx.font = '700 16px system-ui';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, disc.x, disc.y);
-  }
+      function placePairWithDistance(minD, maxD){
+        const pad = circleA.r + 12;
+        const tries = 80;
 
-  function loop(){
-    const w = window.innerWidth, h = window.innerHeight;
-    ctx.clearRect(0,0,w,h);
+        const minX = pad, maxX = W-pad;
+        const minY = pad+10, maxY = H-pad;
 
-    // instruction overlay (small)
-    ctx.fillStyle = 'rgba(255,255,255,.10)';
-    ctx.font = '600 12px system-ui';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('1 doigt sur chaque disque • rapprocher jusqu’au recouvrement', w/2, 64);
+        for (let i=0;i<tries;i++){
+          const d = rand(minD, maxD);
+          const ang = rand(0, Math.PI*2);
 
-    // connecting line (for visibility)
-    ctx.beginPath();
-    ctx.moveTo(discA.x, discA.y);
-    ctx.lineTo(discB.x, discB.y);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(93,214,255,.18)';
-    ctx.stroke();
+          const x1 = rand(minX, maxX);
+          const y1 = rand(minY, maxY);
 
-    // overlap indicator
-    const d = dist(discA.x,discA.y,discB.x,discB.y);
-    const frac = overlapFractionEqualR(d, radius);
-    const ok = frac >= tol;
+          const x2 = x1 + d*Math.cos(ang);
+          const y2 = y1 + d*Math.sin(ang);
 
-    // discs
-    drawDisc(discA, 'A', 'rgba(93,214,255,.55)');
-    drawDisc(discB, 'B', 'rgba(93,255,158,.45)');
+          if (x2 < minX || x2 > maxX || y2 < minY || y2 > maxY) continue;
 
-    // indicator bottom
-    ctx.font = '700 13px system-ui';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = ok ? 'rgba(93,255,158,.85)' : 'rgba(255,255,255,.35)';
-    ctx.fillText(`Recouvrement: ${Math.round(frac*100)}%  •  Seuil: ${Math.round(tol*100)}%`, w/2, h-12);
+          circleA.x = x1; circleA.y = y1;
+          circleB.x = x2; circleB.y = y2;
+          initialCenterDist = dist(x1,y1,x2,y2);
+          return true;
+        }
+        // fallback: random without strict distance
+        circleA.x = rand(pad, W-pad);
+        circleA.y = rand(pad, H-pad);
+        circleB.x = rand(pad, W-pad);
+        circleB.y = rand(pad, H-pad);
+        initialCenterDist = dist(circleA.x,circleA.y,circleB.x,circleB.y);
+        return false;
+      }
 
-    requestAnimationFrame(loop);
-  }
+      // ======= TRIAL MGMT =======
+      function clearTouches(){
+        touchA = null;
+        touchB = null;
+      }
 
-  // ===== Start =====
-  let started = false;
-  function start(){
-    if (started) return;
-    started = true;
-    updateParamUI();
-    spawnPair(true);
-    loop();
-  }
-  start();
+      function resetTrialMetrics(){
+        lifts = 0;
+        slips = 0;
+        distA = 0;
+        distB = 0;
+        jitterA = 0;
+        jitterB = 0;
+        lastMoveDirA = null;
+        lastMoveDirB = null;
+        firstMoveTime = null;
+      }
 
-  // Keep calibration button usable again
-  calibModal.addEventListener('click', (e) => {
-    // avoid closing by background click; do nothing
-    e.stopPropagation();
-  });
+      function newTrial(){
+        // Ensure calibration exists: if not, we still allow trials but distance constraints won't apply.
+        circleA.r = radiusPx;
+        circleB.r = radiusPx;
 
-  // If user reopens calib modal, reset start button
-  calibModal.addEventListener('transitionend', () => {
-    calibStartBtn.disabled = false;
-    calibStartBtn.textContent = 'Démarrer';
-  });
+        const diag = Math.hypot(W,H);
+        const maxD = (maxStartDistPx ?? Math.min(diag*0.45, Math.min(W,H)*0.8));
+        const minD = (minStartDistPx ?? Math.max(circleA.r*2.2, maxD*0.35));
 
-  // When modal opens, make sure start button is reset
-  const origShowCalib = showCalib;
-  // (already resets; plus below)
-  updateParamUI();
+        // Important: enforce min <= max
+        const minUse = Math.min(minD, maxD);
+        const maxUse = Math.max(minD, maxD);
 
-})();
-</script>
+        placePairWithDistance(minUse, maxUse);
+
+        trialActive = true;
+        trialStartTime = now();
+        resetTrialMetrics();
+        clearTouches();
+
+        trialIndex += 1;
+        setStatus(`Essai ${trialIndex} — rapprochez les disques (recouvrement ≥ ${Math.round(overlapThreshold*100)}%)`);
+        render();
+        updateDashboards(null);
+      }
+
+      function completeTrial(){
+        const tEnd = now();
+        const durationMs = tEnd - trialStartTime;
+        const latencyMs = firstMoveTime ? (firstMoveTime - trialStartTime) : null;
+
+        const totalDist = distA + distB;
+        const speedPxPerS = durationMs > 0 ? (totalDist / (durationMs/1000)) : 0;
+        const ratioToInitial = initialCenterDist > 0 ? (totalDist / initialCenterDist) : null;
+
+        // jitter index: average per-circle jitter (already accumulated)
+        const jitterIndex = (jitterA + jitterB) / 2;
+
+        const row = {
+          trial: trialIndex,
+          timestampISO: new Date().toISOString(),
+          radiusPx,
+          overlapThreshold,
+          pinchMaxPx: pinchMaxPx ?? '',
+          minStartDistPx: minStartDistPx ?? '',
+          maxStartDistPx: maxStartDistPx ?? '',
+          initialCenterDistPx: Math.round(initialCenterDist),
+
+          latencyMs: latencyMs != null ? Math.round(latencyMs) : '',
+          durationMs: Math.round(durationMs),
+          distApx: Math.round(distA),
+          distBpx: Math.round(distB),
+          totalDistPx: Math.round(totalDist),
+          speedPxPerS: Math.round(speedPxPerS),
+          ratioTotalToInitial: ratioToInitial != null ? ratioToInitial.toFixed(3) : '',
+
+          lifts,
+          slips,
+          jitterIndex: jitterIndex.toFixed(3),
+        };
+
+        rows.push(row);
+        sessionTrials += 1;
+
+        updateDashboards(row);
+
+        // next trial
+        setTimeout(() => {
+          newTrial();
+        }, 120);
+      }
+
+      // ======= DASHBOARDS =======
+      function metricCell(k,v){
+        const d = document.createElement('div');
+        d.className = 'metric';
+        d.innerHTML = `<div class="k">${k}</div><div class="v">${v}</div>`;
+        return d;
+      }
+
+      function computeSessionStats(){
+        if (rows.length === 0) return null;
+        const n = rows.length;
+
+        const num = (k) => rows.map(r => (r[k] === '' || r[k] == null) ? null : Number(r[k])).filter(v => Number.isFinite(v));
+        const sum = (arr) => arr.reduce((a,b)=>a+b,0);
+        const avg = (arr) => arr.length ? sum(arr)/arr.length : null;
+
+        const latency = avg(num('latencyMs'));
+        const duration = avg(num('durationMs'));
+        const speed = avg(num('speedPxPerS'));
+        const ratio = avg(num('ratioTotalToInitial'));
+        const liftsAvg = avg(num('lifts'));
+        const slipsAvg = avg(num('slips'));
+        const jitter = avg(num('jitterIndex'));
+
+        return {
+          n,
+          latency, duration, speed, ratio, liftsAvg, slipsAvg, jitter
+        };
+      }
+
+      function updateDashboards(lastRow){
+        // last trial panel
+        metricsGrid.innerHTML = '';
+        if (!lastRow){
+          metricsGrid.appendChild(metricCell('Essai', trialIndex));
+          metricsGrid.appendChild(metricCell('Latence', '—'));
+          metricsGrid.appendChild(metricCell('Durée', '—'));
+          metricsGrid.appendChild(metricCell('Vitesse', '—'));
+          metricsGrid.appendChild(metricCell('Distance totale', '—'));
+          metricsGrid.appendChild(metricCell('Ratio dist/écart initial', '—'));
+          metricsGrid.appendChild(metricCell('Levers', '—'));
+          metricsGrid.appendChild(metricCell('Dérapages', '—'));
+          metricsGrid.appendChild(metricCell('Tremblement', '—'));
+        } else {
+          metricsGrid.appendChild(metricCell('Essai', lastRow.trial));
+          metricsGrid.appendChild(metricCell('Latence', lastRow.latencyMs === '' ? '—' : `${lastRow.latencyMs} ms`));
+          metricsGrid.appendChild(metricCell('Durée', `${lastRow.durationMs} ms`));
+          metricsGrid.appendChild(metricCell('Vitesse', `${lastRow.speedPxPerS} px/s`));
+          metricsGrid.appendChild(metricCell('Dist A', `${lastRow.distApx} px`));
+          metricsGrid.appendChild(metricCell('Dist B', `${lastRow.distBpx} px`));
+          metricsGrid.appendChild(metricCell('Dist totale', `${lastRow.totalDistPx} px`));
+          metricsGrid.appendChild(metricCell('Ratio dist/écart', lastRow.ratioTotalToInitial === '' ? '—' : lastRow.ratioTotalToInitial));
+          metricsGrid.appendChild(metricCell('Levers', lastRow.lifts));
+          metricsGrid.appendChild(metricCell('Dérapages', lastRow.slips));
+          metricsGrid.appendChild(metricCell('Tremblement', lastRow.jitterIndex));
+        }
+
+        // session panel
+        sessionGrid.innerHTML = '';
+        const st = computeSessionStats();
+        if (!st){
+          sessionGrid.appendChild(metricCell('Nb essais validés', 0));
+          sessionGrid.appendChild(metricCell('Latence moyenne', '—'));
+          sessionGrid.appendChild(metricCell('Durée moyenne', '—'));
+          sessionGrid.appendChild(metricCell('Vitesse moyenne', '—'));
+          sessionGrid.appendChild(metricCell('Ratio moyen', '—'));
+          sessionGrid.appendChild(metricCell('Levers moyens', '—'));
+          sessionGrid.appendChild(metricCell('Dérapages moyens', '—'));
+          sessionGrid.appendChild(metricCell('Tremblement moyen', '—'));
+        } else {
+          sessionGrid.appendChild(metricCell('Nb essais validés', st.n));
+          sessionGrid.appendChild(metricCell('Latence moyenne', st.latency == null ? '—' : `${Math.round(st.latency)} ms`));
+          sessionGrid.appendChild(metricCell('Durée moyenne', st.duration == null ? '—' : `${Math.round(st.duration)} ms`));
+          sessionGrid.appendChild(metricCell('Vitesse moyenne', st.speed == null ? '—' : `${Math.round(st.speed)} px/s`));
+          sessionGrid.appendChild(metricCell('Ratio moyen', st.ratio == null ? '—' : st.ratio.toFixed(3)));
+          sessionGrid.appendChild(metricCell('Levers moyens', st.liftsAvg == null ? '—' : st.liftsAvg.toFixed(2)));
+          sessionGrid.appendChild(metricCell('Dérapages moyens', st.slipsAvg == null ? '—' : st.slipsAvg.toFixed(2)));
+          sessionGrid.appendChild(metricCell('Tremblement moyen', st.jitter == null ? '—' : st.jitter.toFixed(3)));
+        }
+      }
+
+      // ======= DRAW =======
+      function drawCircle(c, label, colorA, colorB){
+        // outer glow
+        const grd = ctx.createRadialGradient(c.x, c.y, c.r*0.2, c.x, c.y, c.r*1.2);
+        grd.addColorStop(0, colorA);
+        grd.addColorStop(1, colorB);
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+        ctx.fill();
+
+        // rim
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+        ctx.stroke();
+
+        // label
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.font = '700 18px system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, c.x, c.y);
+      }
+
+      function render(){
+        // clear
+        ctx.clearRect(0,0,W,H);
+
+        // title hint (very subtle)
+        ctx.fillStyle = 'rgba(233,238,246,0.08)';
+        ctx.font = '600 14px system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText('Pouce sur A, index sur B — rapprochez pour superposer', W/2, 8);
+
+        // overlap feedback ring
+        const ov = overlapRatio(circleA, circleB);
+        const pct = Math.round(ov*100);
+        ctx.strokeStyle = ov >= overlapThreshold ? 'rgba(71,227,138,0.9)' : 'rgba(102,227,255,0.35)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(W-26, H-26, 12, -Math.PI/2, -Math.PI/2 + (Math.PI*2)*clamp(ov,0,1));
+        ctx.stroke();
+
+        // circles
+        drawCircle(circleA, 'A', 'rgba(102,227,255,0.55)', 'rgba(102,227,255,0.10)');
+        drawCircle(circleB, 'B', 'rgba(255,255,255,0.40)', 'rgba(255,255,255,0.08)');
+
+        // overlay text bottom-left minimal
+        ctx.fillStyle = 'rgba(233,238,246,0.12)';
+        ctx.font = '600 12px system-ui';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`Recouvrement: ${pct}% (seuil ${Math.round(overlapThreshold*100)}%)`, 10, H-10);
+      }
+
+      // ======= INPUT (Pointer events) =======
+      // On privilégie pointer events (Android moderne), mais on “force” le touch-action none déjà.
+      function getPoint(e){
+        const rect = canvas.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      }
+
+      function assignTouchToCircle(pointerId, x, y){
+        // must start inside a circle, and each circle can only have one pointer
+        if (!touchA && withinCircle(circleA.x, circleA.y, circleA.r, x, y)){
+          touchA = {
+            id: pointerId, startX:x, startY:y, lastX:x, lastY:y,
+            path: 0, startTime: now(), slipCount:0, outOfCircle:false
+          };
+          return 'A';
+        }
+        if (!touchB && withinCircle(circleB.x, circleB.y, circleB.r, x, y)){
+          touchB = {
+            id: pointerId, startX:x, startY:y, lastX:x, lastY:y,
+            path: 0, startTime: now(), slipCount:0, outOfCircle:false
+          };
+          return 'B';
+        }
+        return null;
+      }
+
+      function updateJitterAndDistance(touchObj, circleObj, x, y, which){
+        const dx = x - touchObj.lastX;
+        const dy = y - touchObj.lastY;
+        const step = Math.hypot(dx,dy);
+
+        // first movement latency
+        if (step > 0.6 && firstMoveTime == null){
+          firstMoveTime = now();
+        }
+
+        // distance accumulate
+        touchObj.path += step;
+        if (which === 'A') distA += step; else distB += step;
+
+        // tremor / jitter: angle change accumulation for small steps
+        if (step > 0.3){
+          const ang = Math.atan2(dy,dx);
+          const prev = (which === 'A') ? lastMoveDirA : lastMoveDirB;
+          if (prev != null){
+            let dAng = ang - prev;
+            // wrap to [-pi,pi]
+            while (dAng > Math.PI) dAng -= 2*Math.PI;
+            while (dAng < -Math.PI) dAng += 2*Math.PI;
+            const contrib = Math.abs(dAng) * (step < 8 ? 1 : 0.4); // favor micro-moves
+            if (which === 'A') jitterA += contrib; else jitterB += contrib;
+          }
+          if (which === 'A') lastMoveDirA = ang; else lastMoveDirB = ang;
+        }
+
+        // slip detection: pointer leaves circle radius while still held
+        const inside = withinCircle(circleObj.x, circleObj.y, circleObj.r, x, y);
+        if (!inside && !touchObj.outOfCircle){
+          touchObj.outOfCircle = true;
+          touchObj.slipCount += 1;
+          slips += 1;
+        }
+        if (inside) touchObj.outOfCircle = false;
+
+        // move circle center with finger (direct manipulation)
+        circleObj.x += dx;
+        circleObj.y += dy;
+
+        // clamp inside screen
+        const pad = circleObj.r + 6;
+        circleObj.x = clamp(circleObj.x, pad, W-pad);
+        circleObj.y = clamp(circleObj.y, pad, H-pad);
+
+        touchObj.lastX = x;
+        touchObj.lastY = y;
+      }
+
+      function checkCompletion(){
+        const ov = overlapRatio(circleA, circleB);
+        if (ov >= overlapThreshold){
+          // vanish -> next
+          trialActive = false;
+          setStatus(`✅ Réussi (recouvrement ${Math.round(ov*100)}%)`);
+          completeTrial();
+        }
+      }
+
+      // ======= CALIBRATION LOGIC =======
+      // We track maximum distance between first two active pointers.
+      const activePointers = new Map(); // id -> {x,y}
+      function startCalibration(){
+        calibMode = true;
+        pinchMaxLive = 0;
+        calLive.textContent = '0';
+        overlay.classList.add('show');
+        setStatus('Calibration en cours… (2 doigts puis écarter, lever pour valider)');
+        // Clear active pointers so we start clean
+        activePointers.clear();
+      }
+
+      function cancelCalibration(){
+        calibMode = false;
+        overlay.classList.remove('show');
+        activePointers.clear();
+        setStatus('Calibration annulée');
+      }
+
+      function maybeUpdateCalibration(){
+        if (!calibMode) return;
+        if (activePointers.size < 2) return;
+
+        const pts = Array.from(activePointers.values());
+        const d = dist(pts[0].x, pts[0].y, pts[1].x, pts[1].y);
+        if (d > pinchMaxLive) pinchMaxLive = d;
+        calLive.textContent = Math.round(pinchMaxLive);
+      }
+
+      function finalizeCalibrationIfDone(){
+        if (!calibMode) return;
+        // When there are no more pointers, we finalize with the max recorded
+        if (activePointers.size === 0){
+          // If user didn't really do it, ignore
+          if (pinchMaxLive >= 40){
+            pinchMaxPx = pinchMaxLive;
+            minStartDistPx = 0.5 * pinchMaxPx;
+            maxStartDistPx = pinchMaxPx;
+            updateCalLabels();
+            setStatus(`Calibration OK — max=${Math.round(pinchMaxPx)}px, min init=${Math.round(minStartDistPx)}px`);
+          } else {
+            setStatus('Calibration trop courte (essayez de bien écarter 2 doigts).');
+          }
+          calibMode = false;
+          overlay.classList.remove('show');
+          // regenerate to respect new min/max
+          if (!touchA && !touchB) newTrial();
+        }
+      }
+
+      // ======= POINTER HANDLERS =======
+      canvas.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        canvas.setPointerCapture(e.pointerId);
+
+        const p = getPoint(e);
+
+        // store pointer for calibration
+        activePointers.set(e.pointerId, {x:p.x,y:p.y});
+        if (calibMode){
+          maybeUpdateCalibration();
+          return;
+        }
+
+        // normal mode: assign to circle
+        assignTouchToCircle(e.pointerId, p.x, p.y);
+        render();
+      }, { passive:false });
+
+      canvas.addEventListener('pointermove', (e) => {
+        e.preventDefault();
+        const p = getPoint(e);
+
+        // update pointer map
+        if (activePointers.has(e.pointerId)){
+          activePointers.set(e.pointerId, {x:p.x,y:p.y});
+        }
+
+        if (calibMode){
+          maybeUpdateCalibration();
+          return;
+        }
+
+        if (!trialActive) return;
+
+        if (touchA && e.pointerId === touchA.id){
+          updateJitterAndDistance(touchA, circleA, p.x, p.y, 'A');
+        } else if (touchB && e.pointerId === touchB.id){
+          updateJitterAndDistance(touchB, circleB, p.x, p.y, 'B');
+        }
+
+        render();
+        checkCompletion();
+      }, { passive:false });
+
+      function onPointerUpOrCancel(e){
+        e.preventDefault();
+
+        // update pointer map
+        activePointers.delete(e.pointerId);
+
+        if (calibMode){
+          finalizeCalibrationIfDone();
+          return;
+        }
+
+        // normal mode: count lifts if it was one of the two assigned touches
+        let lifted = false;
+        if (touchA && e.pointerId === touchA.id){
+          lifted = true;
+          touchA = null;
+        }
+        if (touchB && e.pointerId === touchB.id){
+          lifted = true;
+          touchB = null;
+        }
+        if (lifted){
+          lifts += 1;
+        }
+        render();
+      }
+
+      canvas.addEventListener('pointerup', onPointerUpOrCancel, { passive:false });
+      canvas.addEventListener('pointercancel', onPointerUpOrCancel, { passive:false });
+      canvas.addEventListener('lostpointercapture', (e) => {
+        // safety
+        activePointers.delete(e.pointerId);
+      });
+
+      // ======= UI HANDLERS =======
+      menuBtn.addEventListener('click', () => panel.classList.toggle('open'));
+      closePanelBtn.addEventListener('click', () => panel.classList.remove('open'));
+
+      // Important: Make sure overlay buttons are clickable (not “captured” by canvas)
+      startCalBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startCalibration();
+      });
+      cancelCalBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelCalibration();
+      });
+
+      radiusPctEl.addEventListener('input', () => {
+        updateRadiusFromPct();
+        circleA.r = radiusPx;
+        circleB.r = radiusPx;
+        if (!touchA && !touchB && !calibMode) newTrial();
+        else render();
+      });
+
+      overlapThEl.addEventListener('input', () => {
+        updateOverlapLabel();
+        render();
+      });
+
+      resetBtn.addEventListener('click', () => {
+        rows.length = 0;
+        sessionTrials = 0;
+        trialIndex = 0;
+        pinchMaxLive = 0;
+        lifts = 0; slips = 0;
+        setStatus('Session réinitialisée');
+        updateDashboards(null);
+        if (!calibMode) newTrial();
+      });
+
+      exportBtn.addEventListener('click', () => {
+        if (rows.length === 0){
+          alert("Aucune donnée à exporter pour l'instant.");
+          return;
+        }
+        const headers = Object.keys(rows[0]);
+        const escapeCSV = (v) => {
+          const s = String(v ?? '');
+          if (/[",\n;]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+          return s;
+        };
+        const lines = [];
+        lines.push(headers.join(';'));
+        for (const r of rows){
+          lines.push(headers.map(h => escapeCSV(r[h])).join(';'));
+        }
+        const blob = new Blob([lines.join('\n')], { type:'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pince_pouce_index_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setStatus(`CSV exporté (${rows.length} essais)`);
+      });
+
+      // ======= INIT =======
+      updateOverlapLabel();
+      updateRadiusFromPct();
+      updateCalLabels();
+      updateDashboards(null);
+
+      window.addEventListener('resize', resize);
+
+      resize();
+      // start first trial
+      newTrial();
+
+      // prevent double-tap zoom on some browsers
+      let lastTouchEnd = 0;
+      document.addEventListener('touchend', (e) => {
+        const nowT = Date.now();
+        if (nowT - lastTouchEnd <= 300) e.preventDefault();
+        lastTouchEnd = nowT;
+      }, { passive:false });
+
+    })();
+  </script>
 </body>
 </html>
