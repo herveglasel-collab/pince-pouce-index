@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pince pouce-index — Superposition de disques</title>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --diskA: rgba(0, 255, 180, 0.85);
+      --diskB: rgba(255, 120, 120, 0.85);
+      --text: rgba(255,255,255,0.9);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    /* Zone de jeu plein écran */
+    #stage {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none; /* CRUCIAL : empêche le scroll/zoom et autorise le multi-touch propre */
+      user-select: none;
+    }
+
+    .disk {
+      position: absolute;
+      width: var(--d, 140px);
+      height: var(--d, 140px);
+      border-radius: 50%;
+      transform: translate(-50%, -50%); /* on positionne via le centre (x,y) */
+      will-change: left, top;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+
+    #diskA { background: var(--diskA); }
+    #diskB { background: var(--diskB); }
+
+    /* Petit HUD */
+    #hud {
+      position: absolute;
+      left: 12px;
+      top: 10px;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.25;
+      background: rgba(0,0,0,0.25);
+      padding: 10px 12px;
+      border-radius: 12px;
+      backdrop-filter: blur(6px);
+    }
+    #hud b { font-weight: 700; }
+    #barWrap{
+      margin-top: 8px;
+      width: 220px;
+      height: 10px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    #bar {
+      height: 100%;
+      width: 0%;
+      background: rgba(255,255,255,0.75);
+    }
+
+    /* Indication visuelle quand un doigt “tient” un disque */
+    .held {
+      outline: 3px solid rgba(255,255,255,0.8);
+      outline-offset: 2px;
+    }
+
+    /* Bouton reset (optionnel) */
+    #resetBtn{
+      margin-top: 10px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 0;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <div id="hud">
+      <div><b>Essais validés :</b> <span id="score">0</span></div>
+      <div><b>Recouvrement :</b> <span id="ovText">0%</span> (objectif ≥ 50%)</div>
+      <div id="barWrap"><div id="bar"></div></div>
+      <button id="resetBtn">Nouvelle paire</button>
+    </div>
+
+    <div id="diskA" class="disk" aria-label="disque A"></div>
+    <div id="diskB" class="disk" aria-label="disque B"></div>
+  </div>
+
+  <script>
+    // =========================
+    // Réglages rapides
+    // =========================
+    const OVERLAP_THRESHOLD = 0.50;  // 50% du disque le plus petit
+    const DISK_DIAMETER_PX = 160;    // taille par défaut (modifiable)
+    const MARGIN = 18;              // marge minimale par rapport aux bords
+
+    // =========================
+    // Helpers de géométrie
+    // =========================
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+    // Aire d'intersection de deux cercles (r1, r2) séparés par d
+    function circleIntersectionArea(r1, r2, d){
+      // Cas sans intersection
+      if (d >= r1 + r2) return 0;
+      // Cas inclusion totale (un cercle dans l'autre)
+      if (d <= Math.abs(r1 - r2)){
+        const rMin = Math.min(r1, r2);
+        return Math.PI * rMin * rMin;
+      }
+      const r1_2 = r1*r1, r2_2 = r2*r2;
+      const alpha = Math.acos((d*d + r1_2 - r2_2) / (2*d*r1));
+      const beta  = Math.acos((d*d + r2_2 - r1_2) / (2*d*r2));
+      const area1 = r1_2 * alpha;
+      const area2 = r2_2 * beta;
+      const area3 = 0.5 * Math.sqrt(
+        (-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2)
+      );
+      return area1 + area2 - area3;
+    }
+
+    function overlapRatio(circleA, circleB){
+      const dx = circleA.x - circleB.x;
+      const dy = circleA.y - circleB.y;
+      const d = Math.hypot(dx, dy);
+      const inter = circleIntersectionArea(circleA.r, circleB.r, d);
+      const areaMin = Math.PI * Math.min(circleA.r, circleB.r) ** 2;
+      return inter / areaMin; // 1 = recouvrement total du plus petit
+    }
+
+    // =========================
+    // État
+    // =========================
+    const stage = document.getElementById('stage');
+    const diskAEl = document.getElementById('diskA');
+    const diskBEl = document.getElementById('diskB');
+    const scoreEl = document.getElementById('score');
+    const ovTextEl = document.getElementById('ovText');
+    const barEl = document.getElementById('bar');
+    const resetBtn = document.getElementById('resetBtn');
+
+    let score = 0;
+
+    // Chaque disque peut être "tenu" par 1 seul pointerId
+    const circleA = { el: diskAEl, x: 0, y: 0, r: DISK_DIAMETER_PX/2, pointerId: null, offsetX: 0, offsetY: 0 };
+    const circleB = { el: diskBEl, x: 0, y: 0, r: DISK_DIAMETER_PX/2, pointerId: null, offsetX: 0, offsetY: 0 };
+
+    // Dimensionne les disques
+    function applyDiskSize(){
+      const d = DISK_DIAMETER_PX;
+      circleA.r = d/2;
+      circleB.r = d/2;
+      circleA.el.style.setProperty('--d', d + 'px');
+      circleB.el.style.setProperty('--d', d + 'px');
+    }
+
+    function placeCircle(circle, x, y){
+      circle.x = x;
+      circle.y = y;
+      circle.el.style.left = x + 'px';
+      circle.el.style.top  = y + 'px';
+    }
+
+    function randomPair(){
+      // Libère les doigts en cours (si reset)
+      release(circleA);
+      release(circleB);
+
+      const rect = stage.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+
+      const minX = MARGIN + circleA.r;
+      const maxX = w - (MARGIN + circleA.r);
+      const minY = MARGIN + circleA.r;
+      const maxY = h - (MARGIN + circleA.r);
+
+      // On essaie de générer deux positions suffisamment distinctes (optionnel)
+      let ax, ay, bx, by;
+      for (let i=0;i<30;i++){
+        ax = Math.random()*(maxX-minX)+minX;
+        ay = Math.random()*(maxY-minY)+minY;
+        bx = Math.random()*(maxX-minX)+minX;
+        by = Math.random()*(maxY-minY)+minY;
+        const d = Math.hypot(ax-bx, ay-by);
+        if (d > circleA.r * 1.5) break;
+      }
+
+      placeCircle(circleA, ax, ay);
+      placeCircle(circleB, bx, by);
+      updateOverlapUI();
+    }
+
+    function updateOverlapUI(){
+      const r = overlapRatio(circleA, circleB);
+      const pct = Math.round(r*100);
+      ovTextEl.textContent = pct + '%';
+      barEl.style.width = clamp(pct, 0, 100) + '%';
+
+      if (r >= OVERLAP_THRESHOLD){
+        // Validation
+        score += 1;
+        scoreEl.textContent = score;
+
+        // Petit “flash” : on masque puis on relance
+        circleA.el.style.visibility = 'hidden';
+        circleB.el.style.visibility = 'hidden';
+
+        setTimeout(() => {
+          circleA.el.style.visibility = 'visible';
+          circleB.el.style.visibility = 'visible';
+          randomPair();
+        }, 250);
+      }
+    }
+
+    // =========================
+    // Gestion multi-touch : 1 doigt par disque
+    // =========================
+    function isHeld(circle){ return circle.pointerId !== null; }
+
+    function release(circle){
+      circle.pointerId = null;
+      circle.el.classList.remove('held');
+      try { circle.el.releasePointerCapture?.(circle.pointerId); } catch(e){}
+    }
+
+    function onPointerDown(circle, ev){
+      // Empêche le navigateur de traiter le geste (scroll/zoom)
+      ev.preventDefault();
+
+      // Si ce disque est déjà tenu, on ignore
+      if (isHeld(circle)) return;
+
+      // Empêche qu'un même doigt tienne les deux disques
+      if (circle === circleA && circleB.pointerId === ev.pointerId) return;
+      if (circle === circleB && circleA.pointerId === ev.pointerId) return;
+
+      circle.pointerId = ev.pointerId;
+      circle.el.classList.add('held');
+
+      // Capture du pointeur : le disque continue à recevoir les move même si on "sort" de l'élément
+      circle.el.setPointerCapture?.(ev.pointerId);
+
+      // Offset pour que le disque ne “saute” pas au centre du doigt
+      // (le doigt attrape le disque là où il l'a touché)
+      const rect = stage.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+      circle.offsetX = circle.x - x;
+      circle.offsetY = circle.y - y;
+    }
+
+    function onPointerMove(circle, ev){
+      if (!isHeld(circle)) return;
+      if (ev.pointerId !== circle.pointerId) return;
+
+      ev.preventDefault();
+
+      const rect = stage.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+
+      // Position désirée (centre) + offset de prise
+      let nx = x + circle.offsetX;
+      let ny = y + circle.offsetY;
+
+      // Contrainte dans l'écran
+      nx = clamp(nx, MARGIN + circle.r, w - (MARGIN + circle.r));
+      ny = clamp(ny, MARGIN + circle.r, h - (MARGIN + circle.r));
+
+      placeCircle(circle, nx, ny);
+      updateOverlapUI();
+    }
+
+    function onPointerUp(circle, ev){
+      if (ev.pointerId !== circle.pointerId) return;
+      ev.preventDefault();
+      circle.pointerId = null;
+      circle.el.classList.remove('held');
+    }
+
+    // Branche les events sur chaque disque (pas sur le stage) => “un doigt sur un disque”
+    for (const [el, circle] of [[diskAEl, circleA], [diskBEl, circleB]]){
+      el.addEventListener('pointerdown', (ev) => onPointerDown(circle, ev), { passive: false });
+      el.addEventListener('pointermove', (ev) => onPointerMove(circle, ev), { passive: false });
+      el.addEventListener('pointerup',   (ev) => onPointerUp(circle, ev),   { passive: false });
+      el.addEventListener('pointercancel', (ev) => onPointerUp(circle, ev), { passive: false });
+      el.addEventListener('lostpointercapture', (ev) => onPointerUp(circle, ev), { passive: false });
+    }
+
+    resetBtn.addEventListener('click', randomPair);
+
+    // Init
+    applyDiskSize();
+    randomPair();
+
+    // Si l'écran tourne / resize
+    window.addEventListener('resize', () => randomPair());
+  </script>
+</body>
+</html>
