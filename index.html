@@ -392,35 +392,78 @@ Max observé : —
   }
 
   function placeNewPair(){
-    // enforce initial distance in [0.5*maxSpan ; 1.0*maxSpan], and also must fit screen.
-    const r = settings.radius;
-    const W = innerWidth, H = innerHeight;
-    const margin = r + 14;
+  const r = settings.radius;
+  const W = innerWidth, H = innerHeight;
+  const margin = r + 14;
 
-    const maxD = clamp(settings.maxSpanPx, 120, 2000);
-    const minD = Math.max(2*r + 10, 0.5 * maxD); // also ensure not overlapping at start
+  // Calibration
+  const dmax = clamp(settings.maxSpanPx, 120, 2000);
+  const minTarget = Math.max(2*r + 10, 0.5 * dmax);
 
-    // If minD too large for screen, cap it.
-    const screenCap = Math.max(2*r + 10, Math.min(W,H) - 2*margin);
-    const minD2 = Math.min(minD, screenCap);
-    const maxD2 = Math.min(maxD, screenCap);
+  // Cap écran (distance max réaliste en restant dans les marges)
+  const maxPossible = Math.max(2*r + 10, Math.min(W, H) - 2*margin);
 
-    const d0 = (maxD2 <= minD2) ? maxD2 : (minD2 + Math.random()*(maxD2-minD2));
-    const ang = Math.random()*Math.PI*2;
+  const minD = Math.min(minTarget, maxPossible);
+  const maxD = Math.min(dmax, maxPossible);
 
-    // choose a center point so both circles fit.
-    const cx = margin + Math.random()*(W - 2*margin);
-    const cy = margin + Math.random()*(H - 2*margin);
+  // Si écran trop petit vs contraintes, on se rabat sur ce qu'on peut
+  const d0 = (maxD <= minD) ? maxD : (minD + Math.random()*(maxD - minD));
 
-    discA.x = clamp(cx - Math.cos(ang)*d0/2, margin, W-margin);
-    discA.y = clamp(cy - Math.sin(ang)*d0/2, margin, H-margin);
-    discB.x = clamp(cx + Math.cos(ang)*d0/2, margin, W-margin);
-    discB.y = clamp(cy + Math.sin(ang)*d0/2, margin, H-margin);
+  // Centre "quasi fixe" + petit jitter (pour éviter apprentissage pur)
+  const cx0 = W * 0.5;
+  const cy0 = H * 0.5;
+  const jitter = Math.min(W, H) * 0.08; // 8% de l'écran
 
-    trialIndex += 1;
-    kpiTrials.textContent = String(trialIndex);
-    resetTrialMetrics();
+  // Contrainte d'angle: |angle vs verticale| <= 45°
+  // On génère un angle autour de la verticale (±45°), puis on choisit aléatoirement
+  // si le segment est vers le haut ou vers le bas (symétrie).
+  const maxAngle = Math.PI / 4;
+
+  let tries = 0;
+  while (true){
+    tries++;
+    if (tries > 3000){
+      // fallback raisonnable
+      discA.x = W*0.5; discA.y = H*0.45;
+      discB.x = W*0.5; discB.y = H*0.55;
+      break;
+    }
+
+    const cx = clamp(cx0 + (Math.random()*2-1)*jitter, margin + d0/2, W - margin - d0/2);
+    const cy = clamp(cy0 + (Math.random()*2-1)*jitter, margin + d0/2, H - margin - d0/2);
+
+    // angle vs verticale: 0 = vertical parfait
+    const delta = (Math.random()*2-1) * maxAngle;     // [-45°, +45°]
+    const base = (Math.random() < 0.5) ? 0 : Math.PI; // vers le bas ou vers le haut
+    const ang = base + delta;
+
+    // vecteur direction (vertical = sin/cos selon repère)
+    // Ici, ang=0 => vers le bas (y+), ang=pi => vers le haut (y-)
+    const dx = Math.sin(ang) * (d0/2);
+    const dy = Math.cos(ang) * (d0/2);
+
+    const ax = cx - dx;
+    const ay = cy - dy;
+    const bx = cx + dx;
+    const by = cy + dy;
+
+    // doit rentrer sans clamp
+    if (ax < margin || ax > W - margin || ay < margin || ay > H - margin) continue;
+    if (bx < margin || bx > W - margin || by < margin || by > H - margin) continue;
+
+    // distance réelle (sécurité)
+    const dReal = Math.hypot(bx-ax, by-ay);
+    if (dReal + 0.5 < minD) continue;
+
+    discA.x = ax; discA.y = ay;
+    discB.x = bx; discB.y = by;
+    break;
   }
+
+  trialIndex += 1;
+  kpiTrials.textContent = String(trialIndex);
+  resetTrialMetrics();
+}
 
   // ---------- Pointer handling for discs ----------
   // We use Pointer Events (works on modern Android) and keep multi-touch.
