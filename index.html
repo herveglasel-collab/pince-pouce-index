@@ -390,75 +390,88 @@ Max observé : —
     kpiLatency.textContent = '—';
     kpiSpeed.textContent = '—';
   }
-
-  function placeNewPair(){
+function placeNewPair(){
   const r = settings.radius;
   const W = innerWidth, H = innerHeight;
   const margin = r + 14;
 
-  // Calibration
+  // 1) Calibration et contraintes de distance
   const dmax = clamp(settings.maxSpanPx, 120, 2000);
   const minTarget = Math.max(2*r + 10, 0.5 * dmax);
 
-  // Cap écran (distance max réaliste en restant dans les marges)
+  // Distance max possible sur cet écran en restant dans les marges
   const maxPossible = Math.max(2*r + 10, Math.min(W, H) - 2*margin);
 
   const minD = Math.min(minTarget, maxPossible);
   const maxD = Math.min(dmax, maxPossible);
 
-  // Si écran trop petit vs contraintes, on se rabat sur ce qu'on peut
+  // Distance initiale d0 dans [minD, maxD]
   const d0 = (maxD <= minD) ? maxD : (minD + Math.random()*(maxD - minD));
 
-  // Centre "quasi fixe" + petit jitter (pour éviter apprentissage pur)
-  const cx0 = W * 0.5;
-  const cy0 = H * 0.5;
-  const jitter = Math.min(W, H) * 0.08; // 8% de l'écran
+  // 2) Contraintes de placement "centré"
+  // Centre Y dans la bande 40% - 60%
+  const cyBandMin = 0.40 * H;
+  const cyBandMax = 0.60 * H;
 
-  // Contrainte d'angle: |angle vs verticale| <= 45°
-  // On génère un angle autour de la verticale (±45°), puis on choisit aléatoirement
-  // si le segment est vers le haut ou vers le bas (symétrie).
+  // Centre X autour du milieu (avec jitter)
+  // (Augmente/diminue ce % si tu veux plus/moins de variété)
+  const jitterX = 0.18 * W; // 18% de la largeur
+
+  // 3) Contrainte d'angle : |angle vs verticale| <= 45°
   const maxAngle = Math.PI / 4;
 
   let tries = 0;
   while (true){
     tries++;
-    if (tries > 3000){
-      // fallback raisonnable
+    if (tries > 4000){
+      // fallback si vraiment impossible (très rare)
       discA.x = W*0.5; discA.y = H*0.45;
       discB.x = W*0.5; discB.y = H*0.55;
       break;
     }
 
-    const cx = clamp(cx0 + (Math.random()*2-1)*jitter, margin + d0/2, W - margin - d0/2);
-    const cy = clamp(cy0 + (Math.random()*2-1)*jitter, margin + d0/2, H - margin - d0/2);
+    // Choix du centre (cx, cy)
+    const cx0 = W * 0.5;
+    const cx = clamp(cx0 + (Math.random()*2 - 1)*jitterX, margin + d0/2, W - margin - d0/2);
 
-    // angle vs verticale: 0 = vertical parfait
-    const delta = (Math.random()*2-1) * maxAngle;     // [-45°, +45°]
-    const base = (Math.random() < 0.5) ? 0 : Math.PI; // vers le bas ou vers le haut
-    const ang = base + delta;
+    const cyRaw = cyBandMin + Math.random()*(cyBandMax - cyBandMin);
+    const cy = clamp(cyRaw, margin + d0/2, H - margin - d0/2);
 
-    // vecteur direction (vertical = sin/cos selon repère)
-    // Ici, ang=0 => vers le bas (y+), ang=pi => vers le haut (y-)
+    // Choix de l'angle autour de la verticale (haut ou bas)
+    const delta = (Math.random()*2 - 1) * maxAngle;     // [-45°, +45°]
+    const base  = (Math.random() < 0.5) ? 0 : Math.PI;  // vers le bas ou vers le haut
+    const ang   = base + delta;
+
+    // Vecteur (d0/2) dans cette direction
+    // Ici ang=0 => vers le bas (y+), ang=pi => vers le haut (y-)
     const dx = Math.sin(ang) * (d0/2);
     const dy = Math.cos(ang) * (d0/2);
 
+    // Centres des deux disques
     const ax = cx - dx;
     const ay = cy - dy;
     const bx = cx + dx;
     const by = cy + dy;
 
-    // doit rentrer sans clamp
+    // Les deux centres doivent être dans l'écran (sans clamp ensuite)
     if (ax < margin || ax > W - margin || ay < margin || ay > H - margin) continue;
     if (bx < margin || bx > W - margin || by < margin || by > H - margin) continue;
 
-    // distance réelle (sécurité)
+    // Sécurité : distance réelle respecte minD
     const dReal = Math.hypot(bx-ax, by-ay);
     if (dReal + 0.5 < minD) continue;
 
+    // OK : on valide
     discA.x = ax; discA.y = ay;
     discB.x = bx; discB.y = by;
     break;
   }
+
+  trialIndex += 1;
+  kpiTrials.textContent = String(trialIndex);
+  resetTrialMetrics();
+}
+
 
   trialIndex += 1;
   kpiTrials.textContent = String(trialIndex);
